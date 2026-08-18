@@ -2,7 +2,7 @@
 
 > Nombre provisional. App personal/familiar para capturar y retener notas de lectura de libros en papel.
 >
-> **Versión 1.4 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
+> **Versión 1.5 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
 >
 > Historial de cambios: ver §12. La v1.0 queda archivada en `plan-v1.0.backup.md`.
 
@@ -110,7 +110,9 @@ Foto → compresión → subida a Storage + fila con `ocr_status='pending'` → 
 
 *Mecanismo de disparo — Fase 1:* el cliente, tras confirmar el guardado, hace un `fetch` *fire-and-forget* a la Edge Function; un cron cada 5 minutos recoge los `pending` huérfanos (cliente cerrado, red caída). Menos elegante que un Database Webhook, **mucho más depurable un sábado**: el webhook vía `pg_net` falla en silencio y es la pieza con más probabilidad de comerse horas. La migración a webhook es candidata de Fase 2, no requisito.
 
-**ADR-4 · OCR: LLM de visión vía proxy en Edge Function.**
+**ADR-4 · OCR: LLM de visión vía proxy en el servidor.**
+*(v1.5: el proxy es una **API route de Next**, no una Edge Function de Supabase.)* Hace exactamente lo mismo —la clave nunca sale del servidor, se verifica el JWT— y se despliega con la app en el mismo push, sin una segunda herramienta, un segundo despliegue ni una segunda sesión de CLI. Motivo inmediato: la CLI de Supabase de esta máquina tiene sesión en otra cuenta y no puede desplegar funciones a este proyecto; motivo de fondo: una pieza móvil menos en un proyecto con presupuesto de un fin de semana. *Contrapartida:* la ruta hereda el límite de duración de Vercel (60 s), suficiente para una transcripción y, si no lo fuera, el diseño asíncrono del ADR-3 ya lo tolera: la fila se queda pendiente y el barrido la recoge.
+
 La clave vive solo en el servidor, con allowlist y tope de gasto (misma postura de gateway que OpenClaw). Motivo: el OCR clásico sufre con la curvatura y sombras de una página fotografiada; un modelo de visión lo resuelve por céntimos y devuelve texto limpio en español. *Fallback:* Tesseract.js en cliente si algún día se quiere modo offline o coste cero.
 
 **Proveedor y modelo son intercambiables en caliente** *(precisión de la v1.4)*. La transcripción se pide a través de una API compatible con OpenAI, que es el formato que hablan casi todos los proveedores; cambiar de uno a otro es cambiar URL base, modelo y clave, no código.
@@ -324,6 +326,11 @@ En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y
 ---
 
 ## 12. Changelog
+
+**v1.5 — 18/08/2026.** El proxy de OCR pasa de Edge Function a API route.
+
+- **ADR-4:** el proxy que llama al modelo es una API route de Next, no una Edge Function de Supabase. Misma postura de seguridad (clave solo en servidor, JWT verificado) con una herramienta y un despliegue menos. Contrapartida aceptada: el límite de 60 s de Vercel, que el diseño asíncrono del ADR-3 ya tolera.
+- Añadidos a la base de datos el estado `processing` y la reclamación atómica que hacen cumplible la idempotencia que el ADR-4 exigía sin decir cómo.
 
 **v1.4 — 18/08/2026.** Proveedor del OCR y vuelta de la parametrización por UI.
 
