@@ -15,6 +15,9 @@ export const AUTH = {
    * Dominio de los emails internos (ADR-8). No existe como dominio real y no
    * se envía correo a él: solo convierte "javi" en un identificador con forma
    * de email, que es lo que Supabase Auth espera.
+   *
+   * Solo se aplica cuando el usuario escribe un nombre suelto. Quien escribe un
+   * email real entra con él tal cual.
    */
   emailDomain: "marginalia.local",
 } as const;

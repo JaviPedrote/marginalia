@@ -2,7 +2,7 @@
 
 > Nombre provisional. App personal/familiar para capturar y retener notas de lectura de libros en papel.
 >
-> **Versión 1.2 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
+> **Versión 1.3 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
 >
 > Historial de cambios: ver §12. La v1.0 queda archivada en `plan-v1.0.backup.md`.
 
@@ -132,7 +132,9 @@ RLS con `user_id = auth.uid()` en todas las tablas y política por carpeta en St
 Ningún proyecto propio tiene PWA todavía: manifest, service worker e icono instalable son terreno nuevo y es la pieza con más riesgo de consumir el sábado. Se monta y se **verifica instalada en el móvil real** antes de escribir una sola feature. Si a mediodía del sábado la PWA no está instalada, se cae a "acceso web con acceso directo en la pantalla de inicio" y se sigue: la métrica de §7 es el objetivo, la PWA solo un medio.
 
 **ADR-8 · Autenticación por usuario y contraseña, sin email. Altas manuales desde el panel.** *(nuevo en v1.2; sustituye a los magic links de la v1.0/v1.1)*
-Login con nombre de usuario y contraseña, sobre emails internos `usuario@marginalia.local` que nunca se envían a ninguna parte. Los usuarios se crean a mano en el panel de Supabase; no hay registro por autoservicio.
+Login con contraseña y un identificador que admite dos formas *(precisión de la v1.3)*: un email real (adultos, que ya tienen uno y lo recuerdan) o un nombre suelto, que se convierte internamente en `nombre@marginalia.local` (hijos, que pueden no tener email). La regla es una línea: si lo escrito contiene `@`, se usa tal cual; si no, se le añade el dominio interno. Los usuarios se crean a mano en el panel de Supabase; no hay registro por autoservicio.
+
+*Lo que no cambia con los emails reales:* **sigue sin enviarse correo en ningún flujo**. El email es solo un identificador. Que la dirección de un adulto exista de verdad es una puerta que queda abierta por si algún día se quiere recuperación de contraseña, no una dependencia que se contraiga hoy.
 
 *Motivo del cambio.* Los magic links (y su variante de código de 6 dígitos) exigen que Supabase envíe correo. El emisor integrado de Supabase está limitado a unos pocos correos por hora en todo el proyecto y su documentación lo declara no apto para producción, así que la alternativa real era montar SMTP propio (Resend) con su dominio verificado. **Montar infraestructura de correo para un login que ocurre una vez por dispositivo es desproporcionado**: la sesión de Supabase se refresca sola mientras se abra la app, de modo que el alta es un evento único. Con cuatro usuarios en un mismo hogar, "gestionar contraseñas" consiste en decirlas en voz alta.
 
@@ -308,6 +310,11 @@ En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y
 ---
 
 ## 12. Changelog
+
+**v1.3 — 18/08/2026.** Precisión del ADR-8 al chocar con la realidad del primer usuario.
+
+- El identificador de acceso admite **email real o nombre suelto**. La v1.2 daba por hecho que todos los usuarios serían `nombre@marginalia.local`; el primer usuario creado fue un email real, y forzar el esquema interno habría significado borrarlo y rehacerlo sin ganar nada. Los hijos, que pueden no tener email, siguen cubiertos por el nombre suelto.
+- **No se contrae ninguna dependencia de correo:** ningún flujo envía email. El identificador sigue siendo solo un identificador.
 
 **v1.2 — 18/08/2026.** Decisión de autenticación, tomada durante el montaje del esqueleto.
 

@@ -8,8 +8,11 @@ import { AUTH } from "@/lib/config";
 /**
  * Acceso por usuario y contraseña (ADR-8 del plan).
  *
- * No hay email de por medio: el nombre de usuario se convierte en un email
- * interno `usuario@marginalia.local` que nunca se envía a ninguna parte.
+ * El identificador admite dos formas: un email real (adultos) o un nombre
+ * suelto, que se convierte en `nombre@marginalia.local` (hijos, que pueden no
+ * tener email). Ninguna de las dos envía correo en ningún momento: para
+ * Supabase Auth el email es solo un identificador.
+ *
  * Los usuarios se crean a mano en el panel de Supabase; no hay autoservicio.
  *
  * Por qué no magic links, que es lo que decía el plan hasta la v1.2: exigen que
@@ -30,7 +33,8 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const email = `${username.trim().toLowerCase()}@${AUTH.emailDomain}`;
+    const id = username.trim().toLowerCase();
+    const email = id.includes("@") ? id : `${id}@${AUTH.emailDomain}`;
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
@@ -52,7 +56,7 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm text-slate-300">
-          Nombre
+          Nombre o email
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -61,7 +65,7 @@ export default function LoginPage() {
             autoComplete="username"
             required
             className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-amber-500"
-            placeholder="javi"
+            placeholder="javi o tu@email.com"
           />
         </label>
 
