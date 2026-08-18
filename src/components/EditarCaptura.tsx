@@ -6,6 +6,8 @@ import type { Book, Capture } from "@/lib/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Etiquetas } from "./Etiquetas";
+import { AnadirVocab } from "./AnadirVocab";
 
 /**
  * Edición de una captura (§7: página y nota son opcionales y se editan
@@ -29,6 +31,7 @@ export function EditarCaptura({
   const [nota, setNota] = useState(captura.note ?? "");
   const [pagina, setPagina] = useState(captura.page?.toString() ?? "");
   const [libroId, setLibroId] = useState(captura.book_id);
+  const [tags, setTags] = useState<string[]>(captura.tags ?? []);
   const [estado, setEstado] = useState<"listo" | "guardando" | "guardado" | "error">("listo");
   const [reintentando, setReintentando] = useState(false);
 
@@ -48,6 +51,7 @@ export function EditarCaptura({
         note: nota.trim() || null,
         page: Number.isFinite(paginaNum) ? paginaNum : null,
         book_id: libroId,
+        tags,
       })
       .eq("id", captura.id);
 
@@ -197,6 +201,14 @@ export function EditarCaptura({
         />
       </label>
 
+      <Etiquetas
+        valor={tags}
+        onChange={(t) => {
+          setTags(t);
+          tocado();
+        }}
+      />
+
       <button
         onClick={guardar}
         disabled={estado === "guardando"}
@@ -207,6 +219,8 @@ export function EditarCaptura({
 
       {estado === "guardado" && <p className="text-sm text-emerald-400">Guardado.</p>}
       {estado === "error" && <p className="text-sm text-red-400">No se pudo guardar.</p>}
+
+      <AnadirVocab bookId={libroId} captureId={captura.id} />
 
       <button
         onClick={borrar}

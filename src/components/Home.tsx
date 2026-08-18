@@ -73,11 +73,19 @@ export function Home({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col gap-6 px-5 py-8">
-      <header className="flex items-baseline justify-between">
+      <header className="flex items-baseline justify-between gap-3">
         <h1 className="text-2xl font-bold">Marginalia</h1>
-        <Link href="/ajustes" className="text-sm text-slate-500 underline underline-offset-4">
-          Ajustes
-        </Link>
+        <nav className="flex shrink-0 gap-3 text-sm text-slate-500">
+          <Link href="/buscar" className="underline underline-offset-4">
+            Buscar
+          </Link>
+          <Link href="/vocabulario" className="underline underline-offset-4">
+            Vocabulario
+          </Link>
+          <Link href="/ajustes" className="underline underline-offset-4">
+            Ajustes
+          </Link>
+        </nav>
       </header>
 
       <Captura libros={libros} libroInicial={libroInicial} onGuardada={recargar} />

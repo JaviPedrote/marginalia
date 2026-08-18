@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { STORAGE } from "@/lib/config";
-import { transcribir } from "./proveedores";
+import { transcribir, ErrorTransitorio } from "./proveedores";
 import type { Settings } from "@/lib/types";
 
 /**
@@ -80,15 +80,20 @@ export async function procesarCaptura({
     return { estado: "ok" };
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "error desconocido";
+    const transitorio = err instanceof ErrorTransitorio;
 
-    // Vuelve a 'pending' para que el barrido lo reintente, salvo que ya se
-    // hayan gastado los intentos: a partir de ahí reintentar solo quema saldo.
-    // La foto sigue guardada, que es lo que el ADR-3 protege.
+    // Un fallo transitorio NO gasta intento: el plan gratuito de Kimi admite una
+    // sola petición simultánea, así que capturar dos páginas seguidas devuelve
+    // un 429 que no dice nada sobre la foto. Contarlo como intento acababa
+    // marcando 'failed' capturas perfectamente transcribibles.
+    //
+    // Vuelve a 'pending' para que el barrido lo reintente. La foto sigue
+    // guardada, que es lo que el ADR-3 protege.
     await supabase
       .from("captures")
       .update({
-        ocr_status: intentos >= MAX_INTENTOS ? "failed" : "pending",
-        ocr_attempts: intentos,
+        ocr_status: !transitorio && intentos >= MAX_INTENTOS ? "failed" : "pending",
+        ocr_attempts: transitorio ? (capture.ocr_attempts ?? 0) : intentos,
         ocr_error: mensaje.slice(0, 500),
       })
       .eq("id", captureId);

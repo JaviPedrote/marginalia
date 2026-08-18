@@ -17,6 +17,26 @@ const CLAVES: Record<Settings["ocr_provider"], string> = {
   claude: "ANTHROPIC_API_KEY",
 };
 
+/**
+ * Fallo que se resuelve solo esperando: límite de concurrencia, rate limit,
+ * caída momentánea del proveedor.
+ *
+ * Distinguirlo importa porque el plan gratuito de Kimi admite **una sola
+ * petición simultánea**: capturar dos páginas seguidas produce un 429 que no
+ * es un error de la foto ni del modelo. Tratarlo como fallo definitivo gastaba
+ * uno de los tres intentos y acababa marcando como 'failed' una captura
+ * perfectamente transcribible.
+ */
+export class ErrorTransitorio extends Error {}
+
+const REINTENTOS = 3;
+const ESPERA_BASE_MS = 1500;
+
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** 429 = límite de peticiones o de concurrencia. 5xx = el proveedor, no nosotros. */
+const esTransitorio = (status: number) => status === 429 || status >= 500;
+
 export async function transcribir({
   settings,
   base64,
@@ -30,10 +50,24 @@ export async function transcribir({
     throw new Error(`falta la variable de entorno ${nombreClave}`);
   }
 
-  const texto =
+  const llamar = () =>
     settings.ocr_provider === "claude"
-      ? await conAnthropic({ settings, clave, base64 })
-      : await conOpenAI({ settings, clave, base64 });
+      ? conAnthropic({ settings, clave, base64 })
+      : conOpenAI({ settings, clave, base64 });
+
+  // Reintento con espera creciente ante fallos transitorios. Kimi contesta
+  // "please try again after 1 seconds" cuando ya hay otra transcripción en
+  // curso; esperar aquí es más barato que devolver el trabajo a la cola.
+  let texto = "";
+  for (let intento = 1; ; intento++) {
+    try {
+      texto = await llamar();
+      break;
+    } catch (err) {
+      if (!(err instanceof ErrorTransitorio) || intento >= REINTENTOS) throw err;
+      await esperar(ESPERA_BASE_MS * intento);
+    }
+  }
 
   const limpio = texto.trim();
   if (!limpio) {
@@ -80,11 +114,10 @@ async function conOpenAI({
 
   const cuerpo = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(
-      `${settings.ocr_provider} ${res.status}: ${
-        cuerpo?.error?.message ?? "respuesta ilegible"
-      }`
-    );
+    const mensaje = `${settings.ocr_provider} ${res.status}: ${
+      cuerpo?.error?.message ?? "respuesta ilegible"
+    }`;
+    throw esTransitorio(res.status) ? new ErrorTransitorio(mensaje) : new Error(mensaje);
   }
   return cuerpo?.choices?.[0]?.message?.content ?? "";
 }
@@ -128,7 +161,8 @@ async function conAnthropic({
 
   const cuerpo = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(`claude ${res.status}: ${cuerpo?.error?.message ?? "respuesta ilegible"}`);
+    const mensaje = `claude ${res.status}: ${cuerpo?.error?.message ?? "respuesta ilegible"}`;
+    throw esTransitorio(res.status) ? new ErrorTransitorio(mensaje) : new Error(mensaje);
   }
   if (cuerpo?.stop_reason === "refusal") {
     throw new Error(`el modelo declinó (${cuerpo?.stop_details?.category ?? "sin categoría"})`);

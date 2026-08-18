@@ -33,6 +33,17 @@ export type Capture = {
   ocr_status: OcrStatus;
   ocr_attempts: number;
   ocr_error: string | null;
+  tags: string[];
+  created_at: string;
+};
+
+export type Vocab = {
+  id: string;
+  user_id: string;
+  book_id: string;
+  capture_id: string | null;
+  word: string;
+  meaning: string | null;
   created_at: string;
 };
 
