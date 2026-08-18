@@ -46,6 +46,42 @@ npm run dev                    # http://localhost:3000
 5. **Cerrar el registro por autoservicio**: Authentication → Sign In / Providers → Email → *Allow new users to sign up* en OFF. La *publishable key* viaja en el bundle del navegador por diseño; con el registro abierto, cualquiera con la URL puede crear cuenta vía API y consumir la cuota del proyecto (RLS le impide ver datos ajenos, pero no entrar).
 6. **Crear los usuarios a mano** en Authentication → Users → *Add user*, con contraseña y marcando *Auto Confirm User*. Email real para los adultos, `nombre@marginalia.local` para quien no tenga. En Fase 1, solo el de Javier.
 
+### Operación: keep-alive y backup
+
+Dos workflows de GitHub Actions, ambos diarios y lanzables a mano desde la pestaña *Actions*:
+
+- **`keep-alive`** — consulta la base de datos para que el proyecto no se pause por inactividad.
+- **`backup`** — `pg_dump` completo comprimido, guardado como artefacto de la ejecución.
+
+Secretos que hay que dar de alta en *Settings → Secrets and variables → Actions*:
+
+| Secreto | Valor |
+|---|---|
+| `SUPABASE_URL` | el mismo de `.env.local` |
+| `SUPABASE_PUBLISHABLE_KEY` | el mismo de `.env.local` |
+| `SUPABASE_DB_URL` | `postgresql://postgres.<ref>:<db-password>@aws-0-<region>.pooler.supabase.com:5432/postgres` |
+
+**Dos limitaciones que conviene tener presentes:**
+
+- GitHub **desactiva los workflows programados tras 60 días sin actividad en el repositorio**. Si el proyecto entra en reposo, el keep-alive se apaga solo y la pausa de Supabase llega igual. Hay que reactivarlo a mano desde *Actions*.
+- Los artefactos caducan a los **90 días** (máximo de GitHub). Suficiente para la ventana de evaluación del §0; si el proyecto sigue vivo después, hay que darle un destino más duradero.
+
+### Restaurar un backup
+
+El DoD del §8 exige haberlo hecho **al menos una vez**: un backup sin restauración probada no es un backup.
+
+```bash
+# 1. Descargar el artefacto desde la pestaña Actions y descomprimirlo
+gunzip marginalia-<fecha>.sql.gz
+
+# 2. Restaurar sobre un proyecto de pruebas (NUNCA sobre el bueno)
+psql "postgresql://postgres.<ref-de-pruebas>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres" \
+  -f marginalia-<fecha>.sql
+
+# 3. Comprobar que los datos están
+#    select count(*) from public.captures;
+```
+
 ### Comandos
 
 | Comando | Qué hace |

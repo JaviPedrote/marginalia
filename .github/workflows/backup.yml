@@ -1,0 +1,61 @@
+# Backup diario de la base de datos (§3 del plan, ADR-2).
+#
+# El plan gratuito de Supabase no incluye copias de seguridad. Con la familia
+# dentro, eso significa que un error deja los datos irrecuperables. Este
+# workflow vuelca la base entera cada día y guarda el fichero como artefacto.
+#
+# Un backup sin restauración probada no es un backup: el DoD del §8 exige
+# restaurar uno al menos una vez. Ver README, sección "Restaurar un backup".
+name: backup
+
+on:
+  schedule:
+    # 04:37 UTC a diario, antes del keep-alive: si el volcado falla, el ping
+    # posterior mantiene el proyecto vivo igualmente.
+    - cron: "37 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar cliente de PostgreSQL 17
+        # El runner trae una versión más antigua y pg_dump se niega a volcar una
+        # base de datos de versión superior. Hay que instalar el cliente exacto.
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Volcar la base de datos
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y%m%d-%H%M)
+          # --no-owner y --no-privileges: el volcado se restaura en cualquier
+          # proyecto sin arrastrar los roles concretos del original.
+          pg_dump "$DB_URL" \
+            --no-owner --no-privileges \
+            --schema=public --schema=storage \
+            | gzip -9 > "marginalia-${stamp}.sql.gz"
+          ls -lh marginalia-*.sql.gz
+          # Un volcado de menos de 1 KB casi seguro es un fallo silencioso.
+          test "$(stat -c%s marginalia-${stamp}.sql.gz)" -gt 1024
+
+      - name: Guardar el artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ github.run_id }}
+          path: marginalia-*.sql.gz
+          # 90 días es el máximo de GitHub. Suficiente para la ventana de
+          # evaluación del §0; si el proyecto sobrevive, ver BACKLOG.md.
+          retention-days: 90
+          if-no-files-found: error

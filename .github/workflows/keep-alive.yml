@@ -1,0 +1,39 @@
+# Keep-alive del proyecto Supabase (§3 del plan, ADR-2).
+#
+# El plan gratuito de Supabase pausa el proyecto tras un periodo de inactividad.
+# Con la familia dentro, una pausa significa "la app no va" sin previo aviso.
+# Este workflow hace una consulta real a PostgREST cada día: toca el gateway y
+# la base de datos, que es lo que cuenta como actividad.
+#
+# OJO (limitación de GitHub, no del código): los workflows programados se
+# desactivan solos tras 60 días sin actividad en el repositorio. Si el proyecto
+# entra en modo mantenimiento y nadie commitea, este keep-alive se apaga y la
+# pausa llega igual. Está anotado en BACKLOG.md.
+name: keep-alive
+
+on:
+  schedule:
+    # 06:12 UTC a diario. Minuto no redondo a propósito: las horas en punto
+    # están saturadas en los runners de GitHub y los arranques se retrasan.
+    - cron: "12 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consulta a la base de datos
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /tmp/out.json -w "%{http_code}" \
+            "$URL/rest/v1/books?select=id&limit=1" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            --max-time 30 --retry 3 --retry-delay 10)
+          echo "HTTP $code"
+          cat /tmp/out.json
+          # 200 con [] es el resultado esperado: RLS no deja ver nada sin sesión,
+          # pero la consulta ha llegado a la base de datos, que es lo que importa.
+          test "$code" = "200"
