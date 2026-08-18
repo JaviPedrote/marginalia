@@ -2,7 +2,7 @@
 
 > Nombre provisional. App personal/familiar para capturar y retener notas de lectura de libros en papel.
 >
-> **Versión 1.5 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
+> **Versión 1.6 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
 >
 > Historial de cambios: ver §12. La v1.0 queda archivada en `plan-v1.0.backup.md`.
 
@@ -253,6 +253,9 @@ Con un solo usuario, "activar una fase sin ramas largas" ya tiene nombre: no des
 - **Libro pegajoso:** cada captura se asigna por defecto al último libro usado; cambiar de libro = 1 tap; crear libro = título y listo. Caso común: 0 taps de asignación. (Aquí es donde se gana a Readwise, cuyo flujo OCR exige asignar en cada captura.)
 - **Guardado automático con deshacer** *(cambio respecto a v1.0)*: en cuanto el `input file` devuelve el fichero, **se guarda sin confirmación**. La UI muestra `Guardado en «[libro]»` con un botón *Deshacer / Editar* que permanece visible unos segundos.
   *Por qué:* la secuencia de v1.0 (desbloquear → icono → cámara → disparo → confirmar) daba 5, pero **olvidaba el «Usar foto» de la cámara nativa**, obligatorio en iOS y Android y fuera de nuestro control. El flujo real eran 6 y la métrica nacía incumplida. Eliminando la confirmación de la app: desbloquear → icono → cámara → disparo → usar foto = **5 taps, ninguno de ellos dentro de nuestra app**.
+- **La transcripción es un acto explícito** *(v1.6)*: tras guardar, se elige con el dedo la zona de la página que interesa y se pide transcribir solo esa. Motivo: fotografiar una página entera para quedarse con un párrafo llena la nota de texto irrelevante y paga tokens de sobra.
+  *Lo que no cambia:* **guardar la foto sigue costando los mismos taps.** La métrica de esta sección mide «captura guardada con libro asignado», y eso ocurre igual de rápido. Lo que se ha vuelto explícito es transcribir, no capturar.
+  *Contrapartida aceptada:* una captura que nunca se transcribe se queda sin texto. Es coherente con el ADR-3: la foto ya es la nota, y se puede transcribir cualquier día.
 - Página y nota: opcionales, editables **después** de guardar, nunca bloqueantes.
 - Estados visibles: `pending` (OCR en curso) → `done` (texto editable) / `failed` (la foto permanece; reintento manual).
 
@@ -326,6 +329,14 @@ En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y
 ---
 
 ## 12. Changelog
+
+**v1.6 — 18/08/2026.** Fase 2 construida, recorte antes de transcribir, y dos defectos encontrados con datos reales.
+
+- **La Fase 2 se construye antes de abrir la Puerta 1→2**, por decisión explícita de Javier. El §3 dice que las puertas son vinculantes; queda registrado que esta se saltó, no que la regla haya cambiado.
+- **§7: la transcripción pasa a ser un acto explícito con recorte previo.** Guardar la foto cuesta los mismos taps; lo que se vuelve explícito es transcribir. Coordenadas guardadas en fracciones, foto original intacta: un recorte mal hecho se rehace.
+- **Defecto encontrado en la búsqueda:** el stemmer español no es idempotente («verdades» se indexa como `verdad`, pero la consulta «verdad» produce `verd`) y los acentos rompen la coincidencia («filosofia» sin tilde no encuentra «filosofía»). Ninguno se arregla cambiando de configuración. Se añade una segunda vía de búsqueda por subcadena sin acentos, y se conservan las dos porque cada una cubre lo que la otra no.
+- **Defecto encontrado en el OCR:** el plan gratuito de Kimi admite **una sola petición simultánea**. Capturar dos páginas seguidas devolvía un 429 que el código trataba como fallo definitivo, gastando uno de los tres intentos y marcando como `failed` fotos perfectamente transcribibles. Los 429 y 5xx pasan a ser transitorios: se reintentan con espera y no consumen intento.
+- **Validado con datos reales:**  transcribe correctamente una página de libro fotografiada. El paso 2 del §3 queda cumplido, aunque por la vía de usar la app en lugar del spike previo.
 
 **v1.5 — 18/08/2026.** El proxy de OCR pasa de Edge Function a API route.
 
