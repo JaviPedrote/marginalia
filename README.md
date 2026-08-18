@@ -61,6 +61,8 @@ Secretos que hay que dar de alta en *Settings → Secrets and variables → Acti
 | `SUPABASE_PUBLISHABLE_KEY` | el mismo de `.env.local` |
 | `SUPABASE_DB_URL` | `postgresql://postgres.<ref>:<db-password>@aws-0-<region>.pooler.supabase.com:5432/postgres` |
 
+**Qué NO cubre el backup:** solo vuelca la base de datos. **Las fotos del bucket `captures` no se copian.** Como el ADR-3 establece que "la foto ya es la nota", perder Storage equivale a perder las notas aunque la base de datos esté intacta. Pendiente de decidir si se cubre — ver `BACKLOG.md`.
+
 **Dos limitaciones que conviene tener presentes:**
 
 - GitHub **desactiva los workflows programados tras 60 días sin actividad en el repositorio**. Si el proyecto entra en reposo, el keep-alive se apaga solo y la pausa de Supabase llega igual. Hay que reactivarlo a mano desde *Actions*.

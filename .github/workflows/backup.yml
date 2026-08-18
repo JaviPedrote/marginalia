@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Instalar cliente de PostgreSQL 17
-        # El runner trae una versión más antigua y pg_dump se niega a volcar una
-        # base de datos de versión superior. Hay que instalar el cliente exacto.
+        # El runner trae el cliente 16 y pg_dump se niega a volcar una base de
+        # datos de versión superior.
         run: |
           set -euo pipefail
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -32,17 +32,27 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
 
       - name: Volcar la base de datos
         env:
           DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
+
+          # Instalar el paquete NO basta: /usr/bin/pg_dump lo gestiona pg_wrapper
+          # de postgresql-common, que resuelve a la versión *por defecto* del
+          # sistema (la 16), no a la más reciente instalada. Hay que llamar al
+          # binario versionado por su ruta. Se elige el mayor disponible para que
+          # esto siga funcionando cuando Supabase actualice de versión mayor.
+          PGDUMP=$(ls -d /usr/lib/postgresql/*/bin/pg_dump 2>/dev/null | sort -V | tail -1)
+          test -n "$PGDUMP" || { echo "No hay ningún pg_dump versionado instalado"; exit 1; }
+          echo "Usando $PGDUMP"
+          "$PGDUMP" --version
+
           stamp=$(date -u +%Y%m%d-%H%M)
           # --no-owner y --no-privileges: el volcado se restaura en cualquier
           # proyecto sin arrastrar los roles concretos del original.
-          pg_dump "$DB_URL" \
+          "$PGDUMP" "$DB_URL" \
             --no-owner --no-privileges \
             --schema=public --schema=storage \
             | gzip -9 > "marginalia-${stamp}.sql.gz"
