@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { STORAGE } from "@/lib/config";
 import { transcribir, ErrorTransitorio } from "./proveedores";
+import { recortar, type Recorte } from "./recortar";
 import type { Settings } from "@/lib/types";
 
 /**
@@ -41,7 +42,7 @@ export async function procesarCaptura({
     .update({ ocr_status: "processing" })
     .eq("id", captureId)
     .eq("ocr_status", "pending")
-    .select("id, image_path, ocr_attempts")
+    .select("id, image_path, ocr_attempts, crop")
     .maybeSingle();
 
   if (errClaim) return { estado: "fallo", mensaje: errClaim.message };
@@ -69,8 +70,9 @@ export async function procesarCaptura({
       throw new Error(`no se pudo leer la imagen: ${errDescarga?.message ?? "desconocido"}`);
     }
 
-    const base64 = Buffer.from(await fichero.arrayBuffer()).toString("base64");
-    const texto = await transcribir({ settings, base64 });
+    const original = Buffer.from(await fichero.arrayBuffer());
+    const recortada = await recortar(original, capture.crop as Recorte | null);
+    const texto = await transcribir({ settings, base64: recortada.toString("base64") });
 
     await supabase
       .from("captures")

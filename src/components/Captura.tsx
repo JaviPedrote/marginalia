@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { COMPRESSION, STORAGE } from "@/lib/config";
 import type { Book, Capture } from "@/lib/types";
 import imageCompression from "browser-image-compression";
+import Link from "next/link";
 import { useRef, useState } from "react";
 
 type Estado =
@@ -94,17 +95,13 @@ export function Captura({
       setEstado({ tipo: "guardado", captura: fila, libro: libro.title });
       onGuardada();
 
-      // Disparo del OCR sin esperar respuesta (ADR-3): si el móvil se apaga
-      // ahora, la fila se queda en 'pending' y el barrido la recoge. La foto
-      // ya está guardada, que es lo único que no puede perderse.
-      fetch("/api/ocr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ captureId: fila.id }),
-        keepalive: true,
-      }).catch(() => {
-        /* el barrido lo recogerá */
-      });
+      // El OCR ya NO se dispara solo. Se transcribe después de elegir la zona
+      // (Recortador), porque transcribir la página entera para quedarse con un
+      // párrafo llena la nota de texto que no interesa y paga tokens de sobra.
+      //
+      // Lo que no cambia: la foto queda guardada aquí y ahora, en el mismo
+      // número de taps que antes. Si nunca se transcribe, la foto sigue siendo
+      // la nota — que es lo que dice el ADR-3.
     } catch (err) {
       setEstado({
         tipo: "error",
@@ -231,16 +228,24 @@ export function Captura({
       </button>
 
       {estado.tipo === "guardado" && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-800 bg-emerald-950/40 px-4 py-3">
-          <p className="min-w-0 truncate text-sm text-emerald-200">
-            Guardado en «{estado.libro}»
-          </p>
-          <button
-            onClick={() => deshacer(estado.captura)}
-            className="shrink-0 text-sm text-emerald-300 underline underline-offset-4"
+        <div className="flex flex-col gap-3 rounded-2xl border border-emerald-800 bg-emerald-950/40 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="min-w-0 truncate text-sm text-emerald-200">
+              Guardado en «{estado.libro}»
+            </p>
+            <button
+              onClick={() => deshacer(estado.captura)}
+              className="shrink-0 text-sm text-emerald-300 underline underline-offset-4"
+            >
+              Deshacer
+            </button>
+          </div>
+          <Link
+            href={`/captura/${estado.captura.id}`}
+            className="rounded-xl bg-emerald-700 py-3 text-center text-sm font-semibold text-white active:bg-emerald-800"
           >
-            Deshacer
-          </button>
+            Elegir zona y transcribir
+          </Link>
         </div>
       )}
 
