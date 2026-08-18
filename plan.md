@@ -336,7 +336,7 @@ En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y
 - **§7: la transcripción pasa a ser un acto explícito con recorte previo.** Guardar la foto cuesta los mismos taps; lo que se vuelve explícito es transcribir. Coordenadas guardadas en fracciones, foto original intacta: un recorte mal hecho se rehace.
 - **Defecto encontrado en la búsqueda:** el stemmer español no es idempotente («verdades» se indexa como `verdad`, pero la consulta «verdad» produce `verd`) y los acentos rompen la coincidencia («filosofia» sin tilde no encuentra «filosofía»). Ninguno se arregla cambiando de configuración. Se añade una segunda vía de búsqueda por subcadena sin acentos, y se conservan las dos porque cada una cubre lo que la otra no.
 - **Defecto encontrado en el OCR:** el plan gratuito de Kimi admite **una sola petición simultánea**. Capturar dos páginas seguidas devolvía un 429 que el código trataba como fallo definitivo, gastando uno de los tres intentos y marcando como `failed` fotos perfectamente transcribibles. Los 429 y 5xx pasan a ser transitorios: se reintentan con espera y no consumen intento.
-- **Validado con datos reales:**  transcribe correctamente una página de libro fotografiada. El paso 2 del §3 queda cumplido, aunque por la vía de usar la app en lugar del spike previo.
+- **Validado con datos reales:** el modelo `kimi-k2.6` transcribe correctamente una página de libro fotografiada. El paso 2 del §3 queda cumplido, aunque por la vía de usar la app en lugar del spike previo.
 
 **v1.5 — 18/08/2026.** El proxy de OCR pasa de Edge Function a API route.
 
