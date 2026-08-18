@@ -16,7 +16,12 @@ Reglas (§2 del `plan.md`):
 | 18/08/2026 | Cola offline con IndexedDB | Plan v1.0 §2. Candidata a v1.1 **solo si** alguna vez se captura sin cobertura. |
 | 18/08/2026 | Tabla `settings` con UI de administración | Plan v1.1 §6. Entra cuando exista un valor concreto que la familia deba cambiar sin Javier. |
 | 18/08/2026 | Disparo del OCR por Database Webhook (`pg_net`) | Plan v1.1 ADR-3. Sustituye al `fetch` + cron barredor si este da problemas en Fase 2. |
-| 18/08/2026 | SMTP propio (Resend) o auth por contraseña | README. **Decisión obligatoria antes del onboarding familiar**: el SMTP integrado de Supabase no aguanta dar de alta a la familia. |
+
+## Resuelto
+
+| Fecha | Idea | Desenlace |
+|---|---|---|
+| 18/08/2026 | SMTP propio (Resend) para el login por email | **Descartado el mismo día.** Se decidió auth por usuario y contraseña, que elimina el email del login: plan v1.2, ADR-8. |
 
 ## Muerto (no se aplaza)
 

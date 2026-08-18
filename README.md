@@ -38,8 +38,9 @@ npm run dev                    # http://localhost:3000
 
    Si las políticas de `storage.objects` fallan por permisos, pegar esa última sección de [`supabase/migrations/001_init.sql`](./supabase/migrations/001_init.sql) en el SQL Editor del panel.
 
-4. **Plantilla de email.** Authentication → Email Templates → *Magic Link*: añadir `{{ .Token }}` al cuerpo. Sin esto el login por código de 6 dígitos no funciona (ver más abajo por qué es código y no enlace).
-5. **Crear el usuario de Javier** a mano en Authentication → Users. El registro por autoservicio está desactivado (`shouldCreateUser: false`): esto no es un producto con altas abiertas.
+4. **Desactivar la confirmación de email**: Authentication → Providers → Email → *Confirm email* en OFF. Sin esto, los usuarios creados a mano quedan en estado "sin confirmar" y no pueden entrar nunca, esperando un correo que nadie va a mandar.
+5. **Crear los usuarios a mano** en Authentication → Users → *Add user*, con email `nombre@marginalia.local` y contraseña. Marcar *Auto Confirm User*. En Fase 1 solo el de Javier.
+   No hay registro por autoservicio: esto no es un producto con altas abiertas.
 
 ### Comandos
 
@@ -54,9 +55,11 @@ npm run dev                    # http://localhost:3000
 
 ## Decisiones que sorprenden al leer el código
 
-**Login por código de 6 dígitos, no por enlace mágico** — aunque el §3 del plan diga "magic links". Un enlace del email abre en el navegador del sistema, y una PWA instalada tiene su propio almacén de cookies, separado del navegador (en iOS de forma especialmente estricta). Pulsar el enlace deja la sesión en el navegador mientras la PWA sigue pidiendo login. Con código, el email solo transporta 6 dígitos y la sesión se crea dentro de la PWA. El enlace sigue funcionando como respaldo (`/auth/callback`).
+**Login por usuario y contraseña, sin email en ninguna parte** (ADR-8). El nombre de usuario se convierte en un email interno `nombre@marginalia.local` que no existe y al que nunca se envía nada; solo le da a Supabase Auth el formato que espera.
 
-**Pendiente para Fase 2 — el SMTP integrado de Supabase tiene un límite muy bajo de emails por hora** y está declarado como no apto para producción. Dar de alta a tres personas en una tarde lo va a tocar. Dos salidas, a decidir antes del onboarding familiar: configurar SMTP propio (Resend tiene plan gratuito suficiente) o pasar a usuario+contraseña como en `gym-tracker`, que elimina la dependencia del email. **Esta decisión debe registrarse en `plan.md` antes de implementarla.**
+Por qué no magic links, que es lo que decía el plan hasta la v1.2: exigen que Supabase mande correo, su emisor integrado está limitado a unos pocos correos por hora en todo el proyecto y su documentación lo declara no apto para producción. La alternativa era montar SMTP propio con dominio verificado — **infraestructura de correo para un login que ocurre una vez por dispositivo**, porque la sesión se refresca sola mientras se abra la app. Para cuatro personas de la misma casa, no sale a cuenta. Efecto colateral bueno: desaparece la entregabilidad de correo, que es la causa nº1 de "no puedo entrar" en apps familiares.
+
+**Contrapartida:** no hay recuperación de contraseña por email. Se cambia desde el panel de Supabase, en 30 segundos.
 
 **El service worker solo se registra en producción.** En `next dev` los chunks de `/_next/static` cambian de contenido conservando la URL y cachearlos rompe el hot reload. La PWA se verifica en la URL desplegada, que es lo que exige el DoD del §8 de todas formas.
 
@@ -75,8 +78,7 @@ src/
   app/
     page.tsx              Home. Hoy: panel de verificación del esqueleto.
                           Mañana: EL botón de captura (§7 del plan).
-    login/                Acceso por código de 6 dígitos
-    auth/callback/        Respaldo del enlace del email
+    login/                Acceso por usuario y contraseña
     offline/              Pantalla del service worker sin red
     manifest.ts           Web App Manifest (/manifest.webmanifest)
   components/

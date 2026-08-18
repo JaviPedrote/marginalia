@@ -43,9 +43,9 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Excluye estáticos, el manifest, el service worker y las rutas que validan
-  // la sesión por su cuenta (/auth/callback intercambia el código, /api valida JWT).
+  // Excluye estáticos, el manifest, el service worker y las rutas de API, que
+  // validan el JWT por su cuenta.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.png|icons/|sw.js|manifest.webmanifest|auth/|api/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.png|icons/|sw.js|manifest.webmanifest|api/).*)",
   ],
 };

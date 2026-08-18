@@ -10,6 +10,15 @@
  * concreto que la familia deba poder cambiar sin Javier.
  */
 
+export const AUTH = {
+  /**
+   * Dominio de los emails internos (ADR-8). No existe como dominio real y no
+   * se envía correo a él: solo convierte "javi" en un identificador con forma
+   * de email, que es lo que Supabase Auth espera.
+   */
+  emailDomain: "marginalia.local",
+} as const;
+
 export const COMPRESSION = {
   /** Objetivo de tamaño tras comprimir (ADR-5). El DoD de §8 exige < 400 KB reales. */
   maxSizeMB: 0.3,

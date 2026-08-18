@@ -3,70 +3,39 @@
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AUTH } from "@/lib/config";
 
 /**
- * Acceso por código de 6 dígitos enviado al email (OTP).
+ * Acceso por usuario y contraseña (ADR-8 del plan).
  *
- * Por qué código y no enlace mágico, pese a que §3 del plan dice "magic links":
- * un enlace del email abre en el navegador del sistema, y una PWA instalada
- * tiene su propio almacén de cookies separado del navegador (especialmente en
- * iOS). Resultado: pulsas el enlace, el navegador queda con sesión y la PWA
- * sigue pidiendo login. Con código, el email solo transporta 6 dígitos y la
- * sesión se crea dentro de la PWA, que es donde tiene que estar.
+ * No hay email de por medio: el nombre de usuario se convierte en un email
+ * interno `usuario@marginalia.local` que nunca se envía a ninguna parte.
+ * Los usuarios se crean a mano en el panel de Supabase; no hay autoservicio.
  *
- * Requiere que la plantilla "Magic Link" de Supabase incluya {{ .Token }}
- * (ver README, sección Configuración de Supabase).
+ * Por qué no magic links, que es lo que decía el plan hasta la v1.2: exigen que
+ * Supabase mande correo, su emisor integrado no es apto para producción, y
+ * montar SMTP propio para un login que ocurre una vez por dispositivo es
+ * infraestructura desproporcionada para cuatro personas de la misma casa.
  */
 export default function LoginPage() {
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function requestCode(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: {
-        // Fase 1: solo Javier. La familia se da de alta desde el panel de
-        // Supabase en Fase 2 (ADR-6), no por autoservicio.
-        shouldCreateUser: false,
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-
-    setLoading(false);
-    if (error) {
-      setError(
-        error.message.toLowerCase().includes("signups not allowed")
-          ? "Ese email no tiene cuenta todavía."
-          : "No se pudo enviar el código. Inténtalo en unos minutos."
-      );
-      return;
-    }
-    setStep("code");
-  }
-
-  async function verifyCode(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    const supabase = createClient();
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: code.trim(),
-      type: "email",
-    });
+    const email = `${username.trim().toLowerCase()}@${AUTH.emailDomain}`;
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      setError("Código incorrecto o caducado.");
+      // Mensaje único a propósito: no revelamos si el usuario existe.
+      setError("Nombre o contraseña incorrectos");
       setLoading(false);
       return;
     }
@@ -81,68 +50,48 @@ export default function LoginPage() {
         Notas de lectura de libros en papel
       </p>
 
-      {step === "email" ? (
-        <form onSubmit={requestCode} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-sm text-slate-300">
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoCapitalize="none"
-              autoComplete="email"
-              required
-              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-amber-500"
-              placeholder="tu@email.com"
-            />
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-2 rounded-xl bg-amber-600 py-3 font-semibold text-white active:bg-amber-700 disabled:opacity-50"
-          >
-            {loading ? "Enviando…" : "Enviarme un código"}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={verifyCode} className="flex flex-col gap-4">
-          <p className="text-sm text-slate-400">
-            Código enviado a <span className="text-slate-200">{email}</span>.
-          </p>
-          <label className="flex flex-col gap-1 text-sm text-slate-300">
-            Código de 6 dígitos
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-center text-2xl tracking-[0.4em] text-slate-100 outline-none focus:border-amber-500"
-              placeholder="000000"
-            />
-          </label>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading || code.length < 6}
-            className="mt-2 rounded-xl bg-amber-600 py-3 font-semibold text-white active:bg-amber-700 disabled:opacity-50"
-          >
-            {loading ? "Entrando…" : "Entrar"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setStep("email");
-              setCode("");
-              setError(null);
-            }}
-            className="text-sm text-slate-400 underline underline-offset-4"
-          >
-            Usar otro email
-          </button>
-        </form>
-      )}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <label className="flex flex-col gap-1 text-sm text-slate-300">
+          Nombre
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="username"
+            required
+            className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-amber-500"
+            placeholder="javi"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm text-slate-300">
+          Contraseña
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+            className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none focus:border-amber-500"
+            placeholder="••••••••"
+          />
+        </label>
+
+        {error && <p className="text-sm text-red-400">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="mt-2 rounded-xl bg-amber-600 py-3 font-semibold text-white active:bg-amber-700 disabled:opacity-50"
+        >
+          {loading ? "Entrando…" : "Entrar"}
+        </button>
+      </form>
+
+      <p className="mt-8 text-center text-xs text-slate-600">
+        ¿Contraseña olvidada? Se cambia desde el panel de Supabase (ADR-8).
+      </p>
     </main>
   );
 }

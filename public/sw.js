@@ -11,7 +11,7 @@
  *   navegaciones (HTML)        → network-first con /offline como último recurso
  *   todo lo demás              → red directa, sin tocar la caché
  *
- * Nunca se intercepta: Supabase, /auth/*, /api/* ni nada que no sea GET.
+ * Nunca se intercepta: Supabase, /api/* ni nada que no sea GET.
  */
 
 const VERSION = "v1";
@@ -59,7 +59,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   // Rutas con sesión o efectos: nunca se cachean.
-  if (url.pathname.startsWith("/auth/") || url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/api/")) return;
 
   if (isPrecacheable(url)) {
     event.respondWith(

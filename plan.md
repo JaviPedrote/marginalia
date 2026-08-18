@@ -2,9 +2,9 @@
 
 > Nombre provisional. App personal/familiar para capturar y retener notas de lectura de libros en papel.
 >
-> **Versión 1.1 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
+> **Versión 1.2 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
 >
-> Cambios respecto a v1.0: ver §12. La v1.0 queda archivada en `plan-v1.0.backup.md`.
+> Historial de cambios: ver §12. La v1.0 queda archivada en `plan-v1.0.backup.md`.
 
 ---
 
@@ -78,7 +78,7 @@ where deleted_at is null;
 |---|---|---|---|
 | **1 — Captura y supervivencia** | Fin de semana 22–23/08 | Foto→OCR asíncrono, entrada manual, libro pegajoso, nota/página opcionales. **Keep-alive y backup programado.** Solo cuenta de Javier activa (esquema multiusuario ya en BD). | DoD de §8 completo el domingo. |
 | **Puerta 1→2** | — | Revisión del punto de control de §2 con ritmo real. | ≥10 capturas propias sin ningún fallo de captura (el OCR puede fallar; la captura, no). |
-| **2 — Consulta y familia** | ~24/08 – 06/09 | Vocabulario, etiquetas, búsqueda. Onboarding de mujer e hijos con magic links. | Familia capturando sin asistencia. |
+| **2 — Consulta y familia** | ~24/08 – 06/09 | Vocabulario, etiquetas, búsqueda. Onboarding de mujer e hijos con usuario y contraseña creados desde el panel (ADR-8). | Familia capturando sin asistencia. |
 | **3 — Retención** | Desde ~07/09 | Repaso espaciado (Leitner simple) + flashcards, exportación Markdown. | Las tres features en uso al menos una vez cada una. |
 | **Evaluación** | **15/09/2026** | Criterio de muerte de §0. | Continuar / archivar. |
 
@@ -128,8 +128,21 @@ La clave vive solo en el servidor, con allowlist y tope de gasto (misma postura 
 **ADR-6 · Multiusuario desde el día 1, onboarding por puertas.**
 RLS con `user_id = auth.uid()` en todas las tablas y política por carpeta en Storage. La familia entra en Fase 2, tras la Puerta 1→2: los usuarios familiares son de un solo intento y no se queman con una v0.1.
 
-**ADR-7 · La PWA se monta primero, con la app vacía.** *(nuevo)*
+**ADR-7 · La PWA se monta primero, con la app vacía.** *(nuevo en v1.1)*
 Ningún proyecto propio tiene PWA todavía: manifest, service worker e icono instalable son terreno nuevo y es la pieza con más riesgo de consumir el sábado. Se monta y se **verifica instalada en el móvil real** antes de escribir una sola feature. Si a mediodía del sábado la PWA no está instalada, se cae a "acceso web con acceso directo en la pantalla de inicio" y se sigue: la métrica de §7 es el objetivo, la PWA solo un medio.
+
+**ADR-8 · Autenticación por usuario y contraseña, sin email. Altas manuales desde el panel.** *(nuevo en v1.2; sustituye a los magic links de la v1.0/v1.1)*
+Login con nombre de usuario y contraseña, sobre emails internos `usuario@marginalia.local` que nunca se envían a ninguna parte. Los usuarios se crean a mano en el panel de Supabase; no hay registro por autoservicio.
+
+*Motivo del cambio.* Los magic links (y su variante de código de 6 dígitos) exigen que Supabase envíe correo. El emisor integrado de Supabase está limitado a unos pocos correos por hora en todo el proyecto y su documentación lo declara no apto para producción, así que la alternativa real era montar SMTP propio (Resend) con su dominio verificado. **Montar infraestructura de correo para un login que ocurre una vez por dispositivo es desproporcionado**: la sesión de Supabase se refresca sola mientras se abra la app, de modo que el alta es un evento único. Con cuatro usuarios en un mismo hogar, "gestionar contraseñas" consiste en decirlas en voz alta.
+
+*Beneficio adicional no buscado:* elimina por completo la dependencia de entregabilidad de correo, que es la causa nº1 de "no puedo entrar" en apps familiares (spam, retrasos, filtros del operador).
+
+*Contrapartida aceptada:* no hay recuperación de contraseña por email. Si alguien la olvida, se cambia desde el panel de Supabase en 30 segundos. Con N ≤ 4 usuarios convivientes esto es más barato que la alternativa.
+
+*Consecuencia operativa:* la confirmación de email debe quedar desactivada en Supabase (Authentication → Providers → Email), o los usuarios creados a mano no podrán entrar nunca.
+
+*Precedente:* es el mismo patrón ya en operación en `gym-tracker`.
 
 ---
 
@@ -243,6 +256,7 @@ Con un solo usuario, "activar una fase sin ramas largas" ya tiene nombre: no des
 - [ ] Cron barredor de `pending` huérfanos funcionando (probado matando el navegador tras el disparo).
 - [ ] Entrada manual de texto funcionando.
 - [ ] RLS verificado: un segundo usuario de prueba no ve datos del primero (ni en tablas ni en Storage).
+- [ ] Login por usuario y contraseña funcionando (ADR-8), con la **confirmación de email desactivada** en Supabase y el registro por autoservicio cerrado.
 - [ ] Clave de OCR solo en servidor; **JWT verificado, rate limit por usuario activo**, tope de gasto configurado en el proveedor.
 - [ ] **Keep-alive programado** y **backup `pg_dump` programado**, ambos con al menos una ejecución correcta comprobada.
 - [ ] **Restauración probada una vez:** un backup se restaura en local o en un proyecto de pruebas. Un backup sin restauración probada no es un backup.
@@ -294,6 +308,15 @@ En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y
 ---
 
 ## 12. Changelog
+
+**v1.2 — 18/08/2026.** Decisión de autenticación, tomada durante el montaje del esqueleto.
+
+- **ADR-8 (nuevo): usuario y contraseña, sin email.** Sustituye a los magic links del §3 de la v1.0/v1.1. El motivo completo está en el propio ADR; en una línea: el emisor de correo integrado de Supabase no es apto para producción, y montar SMTP propio para un login que ocurre una vez por dispositivo es infraestructura desproporcionada.
+- **§3:** la fila de Fase 2 pasa de "magic links" a altas manuales desde el panel.
+- **Retirado de `BACKLOG.md`** el punto "SMTP propio (Resend) o auth por contraseña": queda decidido aquí y ya no es una decisión pendiente.
+- **§8:** el DoD incorpora la desactivación de la confirmación de email, sin la cual los usuarios creados a mano no pueden entrar.
+
+*Trazabilidad:* el código del login se escribió primero con código de 6 dígitos por email y se sustituyó al tomar esta decisión, antes de que nada dependiera de él. El orden plan → código se respetó: esta sección se editó antes de tocar el login.
 
 **v1.1 — 18/08/2026.** Revisión crítica del plan antes del primer commit.
 
