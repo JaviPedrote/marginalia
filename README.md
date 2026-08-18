@@ -12,7 +12,7 @@
 App personal/familiar para capturar y retener notas de lectura de libros en papel.
 El plan completo —alcance, fases, decisiones de arquitectura, criterios— está en [`plan.md`](./plan.md). **Cada sesión de trabajo empieza leyendo el §0 y la fase vigente.**
 
-Estado actual: **Fase 1** — captura por foto con OCR asíncrono, ajustes de modelo. Falta entrada manual y el barrido de huérfanos.
+Estado actual: **Fase 1 construida** — captura por foto con OCR asíncrono, entrada manual, edición de capturas, barrido de huérfanas y ajustes de modelo. Falta verificar en el móvil real las métricas del §7 y el medio check de RLS con dos usuarios.
 
 ---
 

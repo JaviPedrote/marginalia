@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Book, Capture } from "@/lib/types";
 import { useCallback, useEffect, useState } from "react";
 import { Captura } from "./Captura";
+import { EntradaManual } from "./EntradaManual";
 import Link from "next/link";
 
 type CapturaConLibro = Capture & { books: { title: string } | null };
@@ -53,6 +54,19 @@ export function Home({
     return () => clearInterval(id);
   }, [hayPendientes, recargar]);
 
+  // Barrido de huérfanas al abrir la app: recupera las transcripciones que se
+  // quedaron colgadas porque el móvil se apagó o se fue la cobertura.
+  useEffect(() => {
+    fetch("/api/ocr/barrido", { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.recuperadas > 0) recargar();
+      })
+      .catch(() => {
+        /* se reintenta la próxima vez que se abra */
+      });
+  }, [recargar]);
+
   // Libro pegajoso: el de la última captura, o el último libro creado.
   const libroInicial =
     libros.find((l) => l.id === capturas[0]?.book_id) ?? libros[0] ?? null;
@@ -68,6 +82,8 @@ export function Home({
 
       <Captura libros={libros} libroInicial={libroInicial} onGuardada={recargar} />
 
+      <EntradaManual libro={libroInicial} onGuardada={recargar} />
+
       <section className="flex flex-col gap-3">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           Últimas capturas
@@ -82,9 +98,10 @@ export function Home({
         {capturas.map((c) => {
           const estado = ETIQUETA_ESTADO[c.ocr_status];
           return (
-            <article
+            <Link
               key={c.id}
-              className="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3"
+              href={`/captura/${c.id}`}
+              className="rounded-2xl border border-slate-800 bg-slate-900/40 px-4 py-3 active:border-slate-600"
             >
               <div className="mb-1 flex items-baseline justify-between gap-2">
                 <span className="min-w-0 truncate text-xs text-slate-400">
@@ -102,7 +119,7 @@ export function Home({
                     ? "La foto está guardada; la transcripción falló."
                     : "…")}
               </p>
-            </article>
+            </Link>
           );
         })}
       </section>
