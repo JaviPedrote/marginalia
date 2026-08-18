@@ -2,7 +2,7 @@
 
 > Nombre provisional. App personal/familiar para capturar y retener notas de lectura de libros en papel.
 >
-> **Versión 1.3 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
+> **Versión 1.4 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
 >
 > Historial de cambios: ver §12. La v1.0 queda archivada en `plan-v1.0.backup.md`.
 
@@ -65,7 +65,7 @@ where deleted_at is null;
 
 - Estadísticas de lectura y repaso (una tarde, cuando haya datos que contar).
 - Cola offline con IndexedDB (candidata a v1.1 solo si alguna vez se captura sin cobertura).
-- Tabla `settings` con UI de administración (ver §6: se difiere hasta que exista algo que la familia deba tocar sin Javier).
+- ~~Tabla `settings` con UI de administración~~ — **readmitida en v1.4** (§6): ya existe el valor concreto que la justificaba, el proveedor y modelo del OCR. La pantalla de ajustes se construye *después* del flujo de captura.
 - **Cualquier idea nueva a partir de hoy.** Regla: las ideas entran en `BACKLOG.md` con fecha; solo pasan al alcance editando esta sección en una nueva versión del plan.
 
 ---
@@ -112,6 +112,12 @@ Foto → compresión → subida a Storage + fila con `ocr_status='pending'` → 
 
 **ADR-4 · OCR: LLM de visión vía proxy en Edge Function.**
 La clave vive solo en el servidor, con allowlist y tope de gasto (misma postura de gateway que OpenClaw). Motivo: el OCR clásico sufre con la curvatura y sombras de una página fotografiada; un modelo de visión lo resuelve por céntimos y devuelve texto limpio en español. *Fallback:* Tesseract.js en cliente si algún día se quiere modo offline o coste cero.
+
+**Proveedor y modelo son intercambiables en caliente** *(precisión de la v1.4)*. La transcripción se pide a través de una API compatible con OpenAI, que es el formato que hablan casi todos los proveedores; cambiar de uno a otro es cambiar URL base, modelo y clave, no código.
+
+- **Kimi (Moonshot) es el proveedor de partida.** Motivo: es donde hay créditos ahora mismo. Modelos con visión verificados el 18/08/2026 en su documentación: `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.6`. API compatible con OpenAI, imagen como data URI en base64.
+- **DeepSeek queda descartado para el OCR.** Su API pública **no acepta imágenes** (verificado el 18/08/2026: la documentación de la API solo documenta generación de texto, y la visión existe únicamente en su chat web y en un modelo de investigación). Sirve para texto, no para transcribir. Esto invalida la idea de alternar «barato/caro» entre Kimi y DeepSeek: **la elección barato/caro se hace entre modelos de Kimi**, y Claude queda como opción cara de reserva.
+- **Las claves de API nunca son configurables desde la UI.** Viven en variables de entorno de la Edge Function y no se leen ni se escriben desde el navegador, pase lo que pase con el resto de la parametrización (§6).
 
 *Controles de gasto obligatorios (el "tope del proveedor" suele ser un aviso, no un corte):*
 
@@ -220,8 +226,16 @@ Lo que pueda cambiar durante la vida del proyecto no debe exigir tocar código d
 - Límites de compresión (KB objetivo, píxeles máximos).
 - Nº de elementos del repaso diario (Fase 3).
 
-**Diferido a `BACKLOG.md` — tabla `settings` con UI.** *(era requisito en v1.0)*
-Con un usuario en Fase 1 y un despliegue de 30 segundos, una tabla de configuración más su interfaz de administración es trabajo sin retorno. **Entra cuando exista un valor concreto que la familia deba poder cambiar sin Javier**, no antes.
+**Tabla `settings` + pantalla de ajustes — vuelve al alcance.** *(diferida en v1.1, readmitida en v1.4)*
+La v1.1 la difirió por sobreingeniería, con la condición explícita de que entraría «cuando exista un valor concreto que haya que poder cambiar sin desplegar». Ese valor ya existe: **proveedor y modelo del OCR**, que se quieren poder alternar entre barato y caro sin tocar código. Contenido de la tabla:
+
+- Proveedor, modelo y URL base del OCR.
+- Prompt de transcripción.
+- Límites: `max_tokens`, tope de OCR por usuario y día.
+
+**Lo que nunca entra en `settings` ni en la UI: las claves de API.** Viven en variables de entorno de la Edge Function. Una clave en una tabla que el navegador puede leer es una clave publicada.
+
+**Orden de construcción, no negociable:** la tabla y la lectura desde la Edge Function se hacen ya; **la pantalla de ajustes se construye después del flujo de captura**. El riesgo nº1 del §10 es que capturar sea más lento que un post-it, no que cambiar de modelo requiera un despliegue. Mientras no exista la pantalla, los valores se cambian con un `update` en el panel de Supabase, que cuesta lo mismo que un formulario y no consume el sábado.
 
 **Eliminados — feature flags por fase.** *(eran requisito en v1.0)*
 Con un solo usuario, "activar una fase sin ramas largas" ya tiene nombre: no desplegar todavía esa ruta. El flag añadía dos caminos de código y cero valor.
@@ -310,6 +324,14 @@ En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y
 ---
 
 ## 12. Changelog
+
+**v1.4 — 18/08/2026.** Proveedor del OCR y vuelta de la parametrización por UI.
+
+- **Kimi (Moonshot) es el proveedor de partida del OCR** (ADR-4), por ser donde hay créditos. Modelos con visión verificados en su documentación: `kimi-k3`, `kimi-k2.7-code`, `kimi-k2.6`. API compatible con OpenAI.
+- **DeepSeek descartado para el OCR:** su API pública no acepta imágenes (verificado el 18/08/2026). La idea de alternar «barato/caro» entre Kimi y DeepSeek no es viable; la alternancia se hace **entre modelos de Kimi**, con Claude como opción cara de reserva.
+- **La tabla `settings` vuelve al alcance** (§6), revirtiendo la decisión de la v1.1. Aquella la difirió *con una condición escrita*: entraría cuando existiera un valor concreto que hubiera que cambiar sin desplegar. Proveedor y modelo del OCR son ese valor. La condición funcionó como estaba pensada; no es un cambio de criterio.
+- **Las claves de API quedan explícitamente fuera de `settings` y de la UI**, en variables de entorno de la Edge Function. Una clave en una tabla legible desde el navegador es una clave publicada.
+- **Orden fijado:** tabla y lectura desde la Edge Function ahora; **pantalla de ajustes después del flujo de captura**. El riesgo nº1 del §10 es la velocidad de captura, no el coste de cambiar de modelo.
 
 **v1.3 — 18/08/2026.** Precisión del ADR-8 al chocar con la realidad del primer usuario.
 
