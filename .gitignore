@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Spike de OCR: fotos personales y transcripciones, fuera del repo
+/spike/

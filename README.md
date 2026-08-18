@@ -92,6 +92,22 @@ psql "postgresql://postgres.<ref-de-pruebas>:<password>@aws-0-<region>.pooler.su
 | `npm run build` | Build de producción |
 | `npm run lint` | ESLint |
 | `node scripts/gen-icons.mjs` | Regenera los iconos PWA en `public/icons/` |
+| `node scripts/ocr-spike.mjs [modelo]` | Valida la calidad y el coste del OCR sobre fotos reales |
+
+### Validar el OCR antes de construir la captura
+
+El paso 2 del §3 del plan: comprobar que un modelo de visión transcribe páginas de libro en español con calidad suficiente **antes** de construir el flujo de captura encima. Si no llega, cambian el ADR-3 y el ADR-4.
+
+```bash
+mkdir -p spike/fotos          # deja aquí 4-5 fotos reales de páginas de tus libros
+export ANTHROPIC_API_KEY=sk-ant-...
+node scripts/ocr-spike.mjs                    # claude-opus-5 por defecto
+node scripts/ocr-spike.mjs claude-haiku-4-5   # comparar con un modelo más barato
+```
+
+El script comprime cada foto a los **mismos límites que usará producción** (1600 px, ADR-5) antes de enviarla: validar sobre el original de 12 MP mediría una calidad que la app nunca va a tener. Escribe las transcripciones en `spike/salida/` e imprime el coste **medido** por 100 capturas, que es el dato que el §11 exige para cerrar la decisión de proveedor.
+
+`spike/` está fuera del repositorio: son fotos personales.
 
 ---
 
