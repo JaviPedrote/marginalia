@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { supabaseEnv } from "@/lib/env";
 
 /**
  * Proxy (lo que en Next ≤15 era middleware). Refresca la sesión de Supabase en
@@ -8,24 +9,22 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
-        },
+  const { url, publishableKey } = supabaseEnv();
+
+  const supabase = createServerClient(url, publishableKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
 
   // getClaims valida el JWT localmente (rápido); solo va a la red como fallback.
   const { data } = await supabase.auth.getClaims();
@@ -47,6 +46,6 @@ export const config = {
   // Excluye estáticos, el manifest, el service worker y las rutas que validan
   // la sesión por su cuenta (/auth/callback intercambia el código, /api valida JWT).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icons/|sw.js|manifest.webmanifest|auth/|api/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.png|icons/|sw.js|manifest.webmanifest|auth/|api/).*)",
   ],
 };
