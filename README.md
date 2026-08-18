@@ -29,14 +29,18 @@ npm run dev                    # http://localhost:3000
 
 1. Crear un proyecto en [supabase.com](https://supabase.com) (región Europa).
 2. Copiar `Project URL` y la `publishable key` (Project Settings → API) a `.env.local`.
-3. Aplicar la migración:
+3. Aplicar la migración. **Ojo con la cadena de conexión**: la conexión directa (`db.<ref>.supabase.co`) ya no resuelve en proyectos nuevos, Supabase solo la ofrece por IPv6. Hay que ir por el *pooler*, con usuario `postgres.<ref>` y la región correcta:
 
    ```bash
-   npx supabase link --project-ref <ref>
-   npx supabase db push
+   npx supabase db push --db-url \
+     "postgresql://postgres.<ref>:<db-password>@aws-0-<region>.pooler.supabase.com:5432/postgres"
    ```
 
-   Si las políticas de `storage.objects` fallan por permisos, pegar esa última sección de [`supabase/migrations/001_init.sql`](./supabase/migrations/001_init.sql) en el SQL Editor del panel.
+   La contraseña está en Project Settings → Database. La región aparece en la misma pantalla (este proyecto: `eu-central-1`).
+
+   `supabase link` es la alternativa, pero requiere que la CLI tenga sesión en la cuenta dueña del proyecto; si usas la CLI con otra cuenta, `--db-url` evita cambiar de sesión.
+
+   Si las políticas de `storage.objects` fallaran por permisos, pegar esa última sección de [`supabase/migrations/001_init.sql`](./supabase/migrations/001_init.sql) en el SQL Editor del panel.
 
 4. **Desactivar la confirmación de email**: Authentication → Providers → Email → *Confirm email* en OFF. Sin esto, los usuarios creados a mano quedan en estado "sin confirmar" y no pueden entrar nunca, esperando un correo que nadie va a mandar.
 5. **Crear los usuarios a mano** en Authentication → Users → *Add user*, con email `nombre@marginalia.local` y contraseña. Marcar *Auto Confirm User*. En Fase 1 solo el de Javier.
