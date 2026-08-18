@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  /* Respeta el notch y la barra de gestos en modo standalone (viewportFit: cover). */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* El objetivo de §7 es capturar con una mano y sin precisión: nada por debajo
+   de 44px de alto es pulsable de forma fiable en movimiento. */
+button,
+[role="button"] {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* Evita el zoom automático de iOS al enfocar un input (fuentes < 16px). */
+input,
+textarea,
+select {
+  font-size: 16px;
+}

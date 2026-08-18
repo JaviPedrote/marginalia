@@ -1,0 +1,332 @@
+# Marginalia — Plan de proyecto
+
+> Nombre provisional. App personal/familiar para capturar y retener notas de lectura de libros en papel.
+>
+> **Versión 1.1 del plan — 18/08/2026.** Este documento congela alcance, fases y criterios. Los cambios de alcance se hacen editando este fichero (nueva versión con changelog en §12), nunca "de palabra" en una sesión de trabajo.
+>
+> Cambios respecto a v1.0: ver §12. La v1.0 queda archivada en `plan-v1.0.backup.md`.
+
+---
+
+## 0. Criterio de muerte — leer antes que nada
+
+> **Si el 15/09/2026 no hay ≥15 capturas repartidas en ≥3 libros, el proyecto se archiva y se adopta Readwise u Obsidian sin debate.**
+
+Reglas del criterio:
+
+- Los números se fijaron **antes del primer commit** y no se renegocian durante el periodo.
+- La evaluación es binaria y la hace el dato, no la sensación de progreso.
+- Archivar no es fracasar: el objetivo del experimento es averiguar si el hábito de captura existe. Lo único prohibido es el estado intermedio: proyecto a medias, sin uso y sin decisión.
+- Este bloque se copia literal al inicio del `README.md` del repo. Si desaparece de allí, el proyecto está fuera de contrato consigo mismo.
+
+**La consulta que decide (se ejecuta el 15/09 en el editor SQL de Supabase):**
+
+```sql
+select
+  count(*)                         as capturas,        -- criterio: >= 15
+  count(distinct book_id)          as libros,          -- criterio: >= 3
+  count(distinct created_at::date) as dias_distintos,  -- INFORMATIVO
+  count(distinct user_id)          as usuarios         -- INFORMATIVO
+from captures
+where deleted_at is null;
+```
+
+**Criterio = `capturas >= 15` AND `libros >= 3`. Nada más.**
+`dias_distintos` y `usuarios` se muestran solo para leer el contexto (si el volumen viene de una sola tarde, o de una sola persona) y **no forman parte de la decisión**. Se decidió así deliberadamente el 18/08/2026; queda escrito aquí para que el 15/09 no haya nada que interpretar ni renegociar en ninguna de las dos direcciones.
+
+---
+
+## 1. Problema y usuarios
+
+- **Problema:** las notas de lectura en papel viven en post-its dispersos; no hay centralización, búsqueda ni repaso. El competidor real no es otra app: es el post-it (fricción cero) y el olvido.
+- **Usuarios:** Javier (Fase 1). Mujer e hijos (Fase 2; interés confirmado verbalmente — el dato definitivo será el uso real).
+- **No-objetivos:** no es un producto comercial ni un clon completo de Readwise. Es una herramienta personal/familiar. Sin cuentas para terceros fuera del hogar en v1.x.
+
+---
+
+## 2. Alcance v1.0 (congelado)
+
+**Dentro:**
+
+1. Captura por foto con OCR asíncrono.
+2. Entrada manual de texto.
+3. Organización: libro, página, etiquetas, nota propia, búsqueda.
+4. Vocabulario: palabra + significado, ligado a libro y captura.
+5. Repaso diario con repetición espaciada y flashcards.
+6. Exportación a Markdown (compatible con Obsidian).
+
+*Nota de riesgo asumido (no es un cambio de alcance):* los puntos 4, 5 y 6 caen en el tramo 07/09–15/09, que a 2–4 h/semana son ~3–4 horas de trabajo efectivo. El alcance se mantiene por decisión explícita del 18/08/2026. **Punto de control neutral:** en la Puerta 1→2, con el ritmo real ya medido, se revisa si el tramo final se sostiene; si no, se recorta *entonces* con datos, no ahora con estimaciones.
+
+**Fuera — muerto (no se aplaza):**
+
+- Highlights populares/suplementarios: exigen datos agregados de miles de lectores; con N ≤ 4 usuarios la feature es estructuralmente vacía.
+
+**Fuera — backlog (`BACKLOG.md`, nunca directo al build):**
+
+- Estadísticas de lectura y repaso (una tarde, cuando haya datos que contar).
+- Cola offline con IndexedDB (candidata a v1.1 solo si alguna vez se captura sin cobertura).
+- Tabla `settings` con UI de administración (ver §6: se difiere hasta que exista algo que la familia deba tocar sin Javier).
+- **Cualquier idea nueva a partir de hoy.** Regla: las ideas entran en `BACKLOG.md` con fecha; solo pasan al alcance editando esta sección en una nueva versión del plan.
+
+---
+
+## 3. Fases, puertas y calendario
+
+**Regla de calendario: las fechas son indicativas, las puertas son vinculantes.** Cuando una fecha y una puerta chocan, gana la puerta. En v1.0 esto no estaba escrito y la Fase 2 arrancaba (24/08) un día después de terminar la Fase 1, lo que hacía imposible cumplir su propia puerta de entrada sin forzar el dato.
+
+| Fase | Fechas (indicativas) | Contenido | Puerta de salida (vinculante) |
+|---|---|---|---|
+| **1 — Captura y supervivencia** | Fin de semana 22–23/08 | Foto→OCR asíncrono, entrada manual, libro pegajoso, nota/página opcionales. **Keep-alive y backup programado.** Solo cuenta de Javier activa (esquema multiusuario ya en BD). | DoD de §8 completo el domingo. |
+| **Puerta 1→2** | — | Revisión del punto de control de §2 con ritmo real. | ≥10 capturas propias sin ningún fallo de captura (el OCR puede fallar; la captura, no). |
+| **2 — Consulta y familia** | ~24/08 – 06/09 | Vocabulario, etiquetas, búsqueda. Onboarding de mujer e hijos con magic links. | Familia capturando sin asistencia. |
+| **3 — Retención** | Desde ~07/09 | Repaso espaciado (Leitner simple) + flashcards, exportación Markdown. | Las tres features en uso al menos una vez cada una. |
+| **Evaluación** | **15/09/2026** | Criterio de muerte de §0. | Continuar / archivar. |
+
+**Por qué keep-alive y backup suben a Fase 1:** en v1.0 estaban en Fase 3 (07/09) mientras la familia entraba en Fase 2 (24/08). Eran **14 días de datos familiares sin copia de seguridad**, en un plan gratuito sin backups — en contradicción directa con lo que el propio documento decía querer evitar. Coste real de subirlos: un workflow de GitHub Actions con `cron`, un `select 1` y un `pg_dump` a repositorio privado. 30–45 minutos el sábado por la tarde.
+
+**Presupuesto de tiempo:** Fase 1 = un fin de semana cerrado. Después, máximo 2–4 h/semana. Este proyecto no compite con OpenClaw ni con el roadmap Secure-Dev AI-Edge 2027: si compite, pierde él.
+
+**Orden de trabajo del fin de semana (no negociable, el orden importa):**
+
+1. **Sábado mañana, primero:** esqueleto vacío desplegado + PWA instalable verificada en el móvil real (ADR-7).
+2. **Sábado mañana, segundo:** validación del OCR con 5 fotos reales de libros propios a través de la Edge Function, antes de construir listado ni edición (ADR-4). Si la calidad no sirve, quedan ~1,5 días para reaccionar en vez de ninguno.
+3. **Sábado tarde:** flujo de captura completo + keep-alive + backup.
+4. **Domingo:** entrada manual, RLS verificado, medición de la métrica de §7, DoD.
+
+---
+
+## 4. Decisiones de arquitectura (cerradas — formato ADR breve)
+
+**ADR-1 · Frontend: Next 16 + React 19 + TypeScript + Tailwind 4, PWA.**
+*Sustituye a la decisión de v1.0 (Vite + React SPA).* Motivo del cambio: es el stack que ya está rodado en `gym-tracker`, `mayeutica`, `fabrica-libros` y `adelante-camas`; no hay ningún proyecto propio con Vite. Con un presupuesto de **un fin de semana cerrado**, el andamiaje conocido vale más que la pureza arquitectónica. La app es client-side en la práctica; no se usa SSR salvo donde salga gratis.
+*Contrapartida reconocida:* Next arrastra una capa de servidor innecesaria aquí y el service worker es algo más engorroso que con `vite-plugin-pwa`. Era un empate técnico real; lo desempata la experiencia previa.
+**Despliegue:** Vercel (un comando) o Cloudflare con OpenNext copiando la configuración de `adelante-camas`. Se elige el sábado por la mañana, lo que arranque primero; no es una decisión estructural.
+
+**ADR-2 · Backend: Supabase (Auth, Postgres, Storage, Edge Functions), free tier con mitigaciones.**
+Límites conocidos y su mitigación: 1 GB de storage → compresión en cliente obligatoria (ADR-5); pausa tras inactividad → cron keep-alive (**Fase 1**); sin backups en el plan gratuito → `pg_dump` programado a repositorio privado (**Fase 1**). Los límites concretos del free tier se verifican en la documentación vigente el sábado, no se dan por supuestos desde este documento.
+
+**ADR-3 · La captura se desacopla del OCR.**
+Foto → compresión → subida a Storage + fila con `ocr_status='pending'` → la UI confirma al instante → el OCR ocurre en segundo plano y actualiza `ocr_text`. Motivo: la captura compite contra el post-it y no puede pagar la latencia del modelo. **Un fallo de OCR nunca pierde la nota: la foto ya es la nota.**
+
+*Mecanismo de disparo — Fase 1:* el cliente, tras confirmar el guardado, hace un `fetch` *fire-and-forget* a la Edge Function; un cron cada 5 minutos recoge los `pending` huérfanos (cliente cerrado, red caída). Menos elegante que un Database Webhook, **mucho más depurable un sábado**: el webhook vía `pg_net` falla en silencio y es la pieza con más probabilidad de comerse horas. La migración a webhook es candidata de Fase 2, no requisito.
+
+**ADR-4 · OCR: LLM de visión vía proxy en Edge Function.**
+La clave vive solo en el servidor, con allowlist y tope de gasto (misma postura de gateway que OpenClaw). Motivo: el OCR clásico sufre con la curvatura y sombras de una página fotografiada; un modelo de visión lo resuelve por céntimos y devuelve texto limpio en español. *Fallback:* Tesseract.js en cliente si algún día se quiere modo offline o coste cero.
+
+*Controles de gasto obligatorios (el "tope del proveedor" suele ser un aviso, no un corte):*
+
+- La Edge Function **verifica el JWT**: solo usuarios autenticados.
+- **Rate limit por usuario** (arranque: 60 OCR/día).
+- `max_tokens` acotado en la llamada.
+- **Disparo idempotente:** un reintento no puede generar dos llamadas facturables para la misma captura.
+
+*Validación de calidad:* se hace el **sábado por la mañana**, con 5 fotos reales de libros propios (letra pequeña, papel amarillento, sombra del móvil, español con tildes y comillas latinas), antes de construir listado y edición. Se decidió no hacer un spike previo al fin de semana; esta validación temprana es la mitigación de esa decisión.
+
+**ADR-5 · Compresión en cliente obligatoria.**
+`browser-image-compression`: objetivo ~300 KB, lado máximo 1600 px. Suficiente para OCR y hace viable el giga del free tier (~3.300 fotos).
+
+**ADR-6 · Multiusuario desde el día 1, onboarding por puertas.**
+RLS con `user_id = auth.uid()` en todas las tablas y política por carpeta en Storage. La familia entra en Fase 2, tras la Puerta 1→2: los usuarios familiares son de un solo intento y no se queman con una v0.1.
+
+**ADR-7 · La PWA se monta primero, con la app vacía.** *(nuevo)*
+Ningún proyecto propio tiene PWA todavía: manifest, service worker e icono instalable son terreno nuevo y es la pieza con más riesgo de consumir el sábado. Se monta y se **verifica instalada en el móvil real** antes de escribir una sola feature. Si a mediodía del sábado la PWA no está instalada, se cae a "acceso web con acceso directo en la pantalla de inicio" y se sigue: la métrica de §7 es el objetivo, la PWA solo un medio.
+
+---
+
+## 5. Modelo de datos (Fase 1)
+
+```sql
+create table books (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id),
+  title      text not null,
+  author     text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create table captures (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id),
+  book_id    uuid not null references books(id),
+  image_path text,                      -- null en entradas manuales
+  ocr_text   text,
+  note       text,
+  page       int,
+  source     text not null
+             check (source in ('photo','manual')),
+  ocr_status text not null default 'pending'
+             check (ocr_status in ('pending','done','failed','skipped')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  deleted_at timestamptz
+);
+
+create index on captures (user_id, created_at desc);
+create index on captures (book_id);
+create index on captures (ocr_status) where ocr_status = 'pending';
+
+alter table books    enable row level security;
+alter table captures enable row level security;
+-- Políticas: user_id = auth.uid() para select / insert / update / delete.
+```
+
+**Cambios respecto a v1.0 y por qué:**
+
+- **`status` se parte en `source` + `ocr_status`.** En v1.0, `'manual'` era un valor de `status` — pero *manual* no es un estado de OCR, es un origen. Mezclados, una captura manual no podía expresar ningún estado y "dame todo lo pendiente" tenía que excluir casos raros. Coste de separarlos ahora: cero. Coste de separarlos con datos dentro: una migración.
+- **`deleted_at` (borrado lógico).** Es un móvil: los taps falsos ocurren. Sin esto, un mal toque borra una captura para siempre. Todas las consultas del producto filtran `deleted_at is null`.
+- **`updated_at`.** Necesario para el export y para cualquier sincronización futura.
+- **Índice parcial sobre `pending`.** Lo usa el cron barredor de ADR-3.
+
+**Storage:** bucket privado `captures`, ruta `{user_id}/{capture_id}.jpg`, política que compara la primera carpeta del path con `auth.uid()`, lectura vía URLs firmadas.
+**Retención de fotos:** se conservan siempre en v1.x (1 GB ÷ ~300 KB ≈ 3.300 fotos). Se revisa la política al superar el 70% de ocupación.
+
+**Fases posteriores (se nombran, no se diseñan hoy):**
+
+- `vocab` (palabra, significado, `book_id`, `capture_id` opcional) — Fase 2.
+- **Búsqueda (Fase 2):** índice GIN sobre `to_tsvector('spanish', coalesce(ocr_text,'') || ' ' || coalesce(note,''))`. **El idioma es español y se fija ahora:** cambiarlo después es una migración con reindexado.
+- `reviews` (caja Leitner 1–3, `next_due`) — Fase 3.
+
+---
+
+## 6. Parametrización
+
+Lo que pueda cambiar durante la vida del proyecto no debe exigir tocar código disperso. Pero el mecanismo se elige por coste real, no por dogma:
+
+**Variables de entorno de la Edge Function** (cambio = `supabase functions deploy`, ~30 s):
+
+- Proveedor, modelo y prompt del OCR.
+- Clave de API (nunca sale del servidor).
+- Rate limit por usuario y `max_tokens`.
+
+**Un único `config.ts` en el cliente** (cambio = un despliegue de la app):
+
+- Límites de compresión (KB objetivo, píxeles máximos).
+- Nº de elementos del repaso diario (Fase 3).
+
+**Diferido a `BACKLOG.md` — tabla `settings` con UI.** *(era requisito en v1.0)*
+Con un usuario en Fase 1 y un despliegue de 30 segundos, una tabla de configuración más su interfaz de administración es trabajo sin retorno. **Entra cuando exista un valor concreto que la familia deba poder cambiar sin Javier**, no antes.
+
+**Eliminados — feature flags por fase.** *(eran requisito en v1.0)*
+Con un solo usuario, "activar una fase sin ramas largas" ya tiene nombre: no desplegar todavía esa ruta. El flag añadía dos caminos de código y cero valor.
+
+**Sigue siendo defecto:** cualquier valor de las dos primeras listas escrito a fuego en medio de un componente. Que no haya tabla `settings` no autoriza a esparcir constantes por el código.
+
+---
+
+## 7. Flujo de captura — especificación de la pantalla principal
+
+- La home **es** el botón de captura (no un dashboard), con las últimas capturas debajo.
+- `<input type="file" accept="image/*" capture="environment">` → cámara trasera nativa en 1 tap.
+- **Libro pegajoso:** cada captura se asigna por defecto al último libro usado; cambiar de libro = 1 tap; crear libro = título y listo. Caso común: 0 taps de asignación. (Aquí es donde se gana a Readwise, cuyo flujo OCR exige asignar en cada captura.)
+- **Guardado automático con deshacer** *(cambio respecto a v1.0)*: en cuanto el `input file` devuelve el fichero, **se guarda sin confirmación**. La UI muestra `Guardado en «[libro]»` con un botón *Deshacer / Editar* que permanece visible unos segundos.
+  *Por qué:* la secuencia de v1.0 (desbloquear → icono → cámara → disparo → confirmar) daba 5, pero **olvidaba el «Usar foto» de la cámara nativa**, obligatorio en iOS y Android y fuera de nuestro control. El flujo real eran 6 y la métrica nacía incumplida. Eliminando la confirmación de la app: desbloquear → icono → cámara → disparo → usar foto = **5 taps, ninguno de ellos dentro de nuestra app**.
+- Página y nota: opcionales, editables **después** de guardar, nunca bloqueantes.
+- Estados visibles: `pending` (OCR en curso) → `done` (texto editable) / `failed` (la foto permanece; reintento manual).
+
+**Métrica de éxito, medida en el móvil real:**
+
+- **≤5 taps** desde el móvil bloqueado hasta captura guardada con libro asignado.
+  *Definición para que no se pueda interpretar:* un "tap" es un toque intencionado sobre la pantalla. **El desbloqueo biométrico no cuenta**; el «Usar foto» de la cámara nativa **sí cuenta**.
+- **≤15 s de reloj**, mediana de 3 intentos cronometrados. *(nueva)*
+  *Por qué hace falta:* los taps pueden cumplirse y aun así perder contra el post-it, que son ~4 s. Y hay una asimetría que conviene tener presente: el post-it no exige desbloquear el móvil, ni cobertura, ni batería. Si la mediana supera los 15 s, el flujo se rediseña antes de invitar a nadie más.
+
+---
+
+## 8. Definition of Done — Fase 1 (domingo 23/08)
+
+- [ ] Desplegada en URL pública y **PWA instalada y verificada** en el móvil de Javier (o el fallback de ADR-7, documentado).
+- [ ] Captura completa en **≤5 taps** y **≤15 s** (mediana de 3), con libro auto-asignado, medido en el móvil real.
+- [ ] Guardado automático con *Deshacer* funcionando; ninguna confirmación bloqueante en el flujo.
+- [ ] Fotos < 400 KB en Storage; OCR llegando en asíncrono y editable.
+- [ ] Cron barredor de `pending` huérfanos funcionando (probado matando el navegador tras el disparo).
+- [ ] Entrada manual de texto funcionando.
+- [ ] RLS verificado: un segundo usuario de prueba no ve datos del primero (ni en tablas ni en Storage).
+- [ ] Clave de OCR solo en servidor; **JWT verificado, rate limit por usuario activo**, tope de gasto configurado en el proveedor.
+- [ ] **Keep-alive programado** y **backup `pg_dump` programado**, ambos con al menos una ejecución correcta comprobada.
+- [ ] **Restauración probada una vez:** un backup se restaura en local o en un proyecto de pruebas. Un backup sin restauración probada no es un backup.
+- [ ] Este `plan.md` en la raíz del repo y el §0 copiado literal al inicio del `README.md`.
+- [ ] Proyecto reproducible desde cero con un comando documentado.
+
+---
+
+## 9. Método de trabajo — proporcional a la fase
+
+En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y 1 antes de una sola línea de código, TDD con agentes de rol separados, validator con acta) **para un proyecto cuyo propio presupuesto son dos días**. Las dos cosas no caben a la vez, y el riesgo nº1 del proyecto (que la captura nunca ocurra) se combate poniendo la app en el móvil el sábado, no produciendo documentación.
+
+**Fase 1 — método ligero:**
+
+1. `REQUIREMENTS.md` **corto**: los checks de §8 ya son criterios de aceptación verificables. Se convierten en REQ-001..REQ-012 con su criterio y su marca de parametrizable. ~20 minutos, no una sesión.
+2. **Tests solo donde el fallo es silencioso y caro:**
+   - **RLS**: un segundo usuario no ve nada del primero (tablas y Storage). Un fallo aquí no se nota hasta que hay familia dentro.
+   - **Máquina de estados del OCR**: `pending → done | failed`, idempotencia del disparo, barrido de huérfanos.
+
+   TDD ceremonial sobre componentes de UI de una app personal no paga y se omite deliberadamente.
+3. **Cierre de Fase 1:** repaso del DoD punto por punto. Nada se da por hecho sin comprobarlo en el móvil real.
+
+**Fase 2 en adelante — método completo:** entra la familia, sube el coste de un fallo y el proyecto ya ha demostrado que se usa. Aquí sí aplica la skill `desarrollo-riguroso` al completo (parametrización, ciclo TDD con roles separados, validator con acta). Nada se entrega `NO VALIDADO`.
+
+**Cambios de alcance (siempre):** primero §2 de este plan (nueva versión con changelog), después `REQUIREMENTS.md`, después código. Nunca al revés.
+
+---
+
+## 10. Riesgos vigilados
+
+- **El riesgo nº 1 no es técnico:** que la captura real sea más lenta que el post-it. Las métricas de §7 son innegociables y se miden el domingo en el móvil.
+- **Calidad del OCR en condiciones reales.** Se decidió no hacer spike previo. Mitigación: validación con 5 fotos reales el **sábado por la mañana**, antes de construir listado y edición. Si el texto sale inservible, hay ~1,5 días para replantear (p. ej. foto + frase clave escrita a mano) en lugar de descubrirlo el domingo por la noche.
+- **Andamiaje de PWA.** Terreno nuevo, ningún precedente propio, alto potencial de consumir el sábado. Mitigación: ADR-7 (se monta primero, con fallback definido).
+- **Gasto descontrolado del OCR.** El tope del proveedor suele avisar, no cortar. Mitigación: JWT + rate limit + `max_tokens` + disparo idempotente (ADR-4).
+- **Tramo 07/09–15/09 sobrecargado.** Vocabulario, repaso, flashcards y exportación en ~3–4 horas efectivas. Riesgo asumido explícitamente; se revisa en la Puerta 1→2 con ritmo real (§2).
+- **Scope creep:** regla de `BACKLOG.md` (§2); este plan es la única puerta de cambios de alcance.
+- **Pérdida de datos con la familia dentro:** resuelto subiendo keep-alive y backup a Fase 1 (§3), con restauración probada en el DoD.
+- **Abandono al 60%:** el criterio de §0 convierte incluso el abandono en un resultado limpio con decisión tomada.
+
+---
+
+## 11. Pendientes de decisión (no bloquean la Fase 1)
+
+- Nombre definitivo (provisional: **Marginalia**).
+- **Proveedor y modelo concretos del modelo de visión.** Se decide el sábado por la mañana con la validación de ADR-4: se prueban dos candidatos con las mismas 5 fotos y se elige por calidad de transcripción en español; el coste por 100 capturas es secundario a esa escala (céntimos en cualquier caso).
+- Plataforma de despliegue: Vercel o Cloudflare/OpenNext (ADR-1). No es estructural.
+- Formato exacto de la exportación Markdown (frontmatter YAML, un fichero por libro) — se especifica al inicio de la Fase 3.
+
+---
+
+## 12. Changelog
+
+**v1.1 — 18/08/2026.** Revisión crítica del plan antes del primer commit.
+
+*Decisiones tomadas por Javier en la revisión:*
+
+- **Stack cambiado** a Next 16 + React 19 + Tailwind 4 (ADR-1), sustituyendo Vite + React SPA. Motivo: es el stack rodado en los cuatro proyectos propios existentes; Vite no tenía precedente.
+- **Alcance mantenido sin recortes** (§2), pese al riesgo señalado sobre el tramo 07/09–15/09. Se añade punto de control neutral en la Puerta 1→2.
+- **Criterio del §0 mantenido sin cambios** (15 capturas / 3 libros, sin condición de días distintos ni de usuario). Se añade la consulta SQL literal, con columnas informativas explícitamente marcadas como fuera del criterio.
+- **Sin spike de OCR previo al fin de semana.** Mitigado con validación temprana el sábado por la mañana (ADR-4, §3 orden de trabajo).
+
+*Correcciones de contradicciones internas de la v1.0:*
+
+- **Keep-alive y backup suben de Fase 3 a Fase 1** (§3). La v1.0 metía a la familia el 24/08 y ponía el backup el 07/09: 14 días de datos familiares sin copia, contra lo que el propio documento decía querer evitar.
+- **Métrica de §7 corregida.** La secuencia de 5 pasos de la v1.0 omitía el «Usar foto» de la cámara nativa; el flujo real eran 6 y la métrica nacía incumplida. Se elimina la confirmación dentro de la app (guardado automático con *Deshacer*) y se define qué cuenta como tap.
+- **Fechas indicativas, puertas vinculantes** (§3). La v1.0 abría la Fase 2 el 24/08, un día después de cerrar la Fase 1, haciendo inalcanzable su propia puerta de ≥10 capturas.
+
+*Mejoras añadidas:*
+
+- **§7:** métrica de tiempo de reloj (≤15 s, mediana de 3). Los taps pueden cumplirse y aun así perder contra el post-it.
+- **§5:** `status` partido en `source` + `ocr_status`; `deleted_at` (borrado lógico); `updated_at`; índice parcial sobre `pending`; idioma español fijado para el futuro índice de búsqueda; política de retención de fotos.
+- **ADR-3:** mecanismo de disparo del OCR simplificado para Fase 1 (fetch fire-and-forget + cron barredor) en lugar de Database Webhook, que falla en silencio y es difícil de depurar en un fin de semana.
+- **ADR-4:** controles de gasto obligatorios (JWT, rate limit, `max_tokens`, idempotencia). El "tope del proveedor" que pedía la v1.0 suele ser un aviso, no un corte.
+- **ADR-7 (nuevo):** la PWA se monta primero con la app vacía, con fallback definido.
+- **§8:** DoD ampliado con PWA verificada, métrica de tiempo, barrido de huérfanos, rate limit, backup **con restauración probada**.
+
+*Eliminado por no aportar:*
+
+- **Tabla `settings` en Fase 1** (§6) → diferida a `BACKLOG.md`. Sustituida por variables de entorno de la Edge Function + un `config.ts`. Con un usuario y un deploy de 30 segundos, una tabla de configuración con su UI era trabajo sin retorno.
+- **Feature flags por fase** (§6). Con un solo usuario, "activar sin ramas largas" es no desplegar todavía esa ruta.
+- **Skill `desarrollo-riguroso` completa en Fase 1** (§9) → sustituida por método proporcional (REQUIREMENTS corto desde el DoD + tests solo en RLS y máquina de estados del OCR). La skill completa vuelve en Fase 2, cuando entra la familia y sube el coste de un fallo. La v1.0 exigía sesión completa de requisitos "antes de una sola línea de código" y a la vez cerrar la Fase 1 en dos días: las dos cosas no caben.
+
+**v1.0 — 18/08/2026.** Versión inicial. Archivada en `plan-v1.0.backup.md`.
+
+---
+
+**Cómo usar este documento:** vive en la raíz del repo y como conocimiento del Claude Project. Cada sesión de trabajo empieza leyendo §0 y la fase vigente. Si una conversación propone algo fuera de §2, la respuesta por defecto es `BACKLOG.md`.
