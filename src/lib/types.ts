@@ -34,7 +34,6 @@ export type Capture = {
   ocr_attempts: number;
   ocr_error: string | null;
   tags: string[];
-  crop: { x: number; y: number; w: number; h: number } | null;
   created_at: string;
 };
 

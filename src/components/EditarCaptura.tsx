@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Etiquetas } from "./Etiquetas";
 import { AnadirVocab } from "./AnadirVocab";
-import { Recortador, type Recorte } from "./Recortador";
 
 /**
  * Edición de una captura (§7: página y nota son opcionales y se editan
@@ -33,39 +32,11 @@ export function EditarCaptura({
   const [pagina, setPagina] = useState(captura.page?.toString() ?? "");
   const [libroId, setLibroId] = useState(captura.book_id);
   const [tags, setTags] = useState<string[]>(captura.tags ?? []);
-  const [recorte, setRecorte] = useState<Recorte | null>(captura.crop ?? null);
   const [estado, setEstado] = useState<"listo" | "guardando" | "guardado" | "error">("listo");
   const [reintentando, setReintentando] = useState(false);
-  const [transcribiendo, setTranscribiendo] = useState(false);
 
   function tocado() {
     setEstado("listo");
-  }
-
-  /**
-   * Guarda el recorte y pide la transcripción.
-   *
-   * El recorte se persiste ANTES de llamar: el servidor lo lee de la fila, no
-   * de la petición, para que un reintento posterior —o el barrido— use la misma
-   * zona sin que el cliente tenga que volver a mandarla.
-   */
-  async function transcribir() {
-    setTranscribiendo(true);
-    const supabase = createClient();
-
-    await supabase
-      .from("captures")
-      .update({ crop: recorte, ocr_status: "pending", ocr_attempts: 0, ocr_error: null })
-      .eq("id", captura.id);
-
-    await fetch("/api/ocr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ captureId: captura.id }),
-    });
-
-    setTranscribiendo(false);
-    router.refresh();
   }
 
   async function guardar() {
@@ -135,22 +106,25 @@ export function EditarCaptura({
       </header>
 
       {urlImagen && (
-        <>
-          <Recortador url={urlImagen} valor={recorte} onChange={setRecorte} />
-          <button
-            onClick={transcribir}
-            disabled={enCurso || transcribiendo}
-            className="rounded-xl bg-amber-600 py-3 font-semibold text-white active:bg-amber-700 disabled:opacity-50"
-          >
-            {transcribiendo || enCurso
-              ? "Transcribiendo…"
-              : recorte
-                ? "Transcribir la zona elegida"
-                : captura.ocr_text
-                  ? "Volver a transcribir (foto entera)"
-                  : "Transcribir la foto entera"}
-          </button>
-        </>
+        // Colapsada cuando ya hay texto: una vez transcrita, la foto es el
+        // respaldo, no el contenido. Enseñar imagen y texto a la vez obliga a
+        // hacer scroll para llegar a lo único que se va a leer.
+        <details open={!captura.ocr_text} className="rounded-2xl border border-slate-800">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm text-slate-400 marker:content-none">
+            📷 Ver la foto
+          </summary>
+          <div className="px-3 pb-3">
+            {/* next/image no encaja: la URL viene firmada y caduca en una hora,
+                así que no se puede declarar en remotePatterns, y optimizarla
+                gastaría cuota de Vercel para una foto que solo mira su dueño. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={urlImagen}
+              alt="Foto de la página capturada"
+              className="w-full rounded-xl"
+            />
+          </div>
+        </details>
       )}
 
       {enCurso && <p className="text-sm text-amber-400">Transcribiendo…</p>}

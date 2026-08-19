@@ -2,29 +2,33 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { COMPRESSION, STORAGE } from "@/lib/config";
+import { recortarEnCliente } from "@/lib/recortar-cliente";
 import type { Book, Capture } from "@/lib/types";
 import imageCompression from "browser-image-compression";
-import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Recortador, type Recorte } from "./Recortador";
 
 type Estado =
   | { tipo: "listo" }
+  | { tipo: "recortando"; file: File; url: string }
   | { tipo: "guardando" }
   | { tipo: "guardado"; captura: Capture; libro: string }
   | { tipo: "error"; mensaje: string };
 
+/** Marco inicial: casi toda la foto, con un margen para que se vean los tiradores. */
+const RECORTE_INICIAL: Recorte = { x: 0.08, y: 0.08, w: 0.84, h: 0.84 };
+
 /**
  * La home ES el botón de captura (§7 del plan).
  *
- * Reglas de §7 implementadas aquí, y por qué:
- *   · Guardado automático, sin confirmar. La cámara nativa ya obliga a un
- *     "Usar foto"; añadir un botón nuestro convertía los 5 taps del objetivo
- *     en 6. Se guarda solo y se ofrece Deshacer.
- *   · Libro pegajoso: la captura va al último libro usado. Caso común, 0 taps
- *     de asignación. Aquí es donde se le gana a Readwise.
- *   · La foto se sube ANTES de existir la fila, y la fila se crea con
- *     ocr_status='pending'. La UI confirma en cuanto la fila existe: no espera
- *     al modelo (ADR-3).
+ * Flujo: foto → elegir zona → guardar solo esa zona → el OCR llega solo.
+ *
+ * El recorte va ANTES de guardar (v1.7): a Storage solo llega lo que interesa,
+ * la transcripción no se llena de texto irrelevante y no se pagan tokens por
+ * los márgenes. Coste reconocido: guardar pasa de 5 a 6 taps, y el §7 llamaba
+ * innegociables a esos 5. Se acepta a cambio de la calidad de la nota.
+ *
+ * Libro pegajoso: la captura va al último libro usado, 0 taps en el caso común.
  */
 export function Captura({
   libros,
@@ -37,15 +41,30 @@ export function Captura({
 }) {
   const [libro, setLibro] = useState<Book | null>(libroInicial);
   const [estado, setEstado] = useState<Estado>({ tipo: "listo" });
+  const [recorte, setRecorte] = useState<Recorte>(RECORTE_INICIAL);
   const [creandoLibro, setCreandoLibro] = useState(false);
   const [tituloNuevo, setTituloNuevo] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function capturar(file: File) {
+  // Las URL de objeto ocupan memoria hasta que se liberan a mano; en un móvil,
+  // varias fotos seguidas sin liberar acaban tirando la pestaña.
+  useEffect(() => {
+    if (estado.tipo !== "recortando") return;
+    const url = estado.url;
+    return () => URL.revokeObjectURL(url);
+  }, [estado]);
+
+  function elegirFoto(file: File) {
     if (!libro) {
       setEstado({ tipo: "error", mensaje: "Crea un libro antes de capturar." });
       return;
     }
+    setRecorte(RECORTE_INICIAL);
+    setEstado({ tipo: "recortando", file, url: URL.createObjectURL(file) });
+  }
+
+  async function guardar(file: File) {
+    if (!libro) return;
     setEstado({ tipo: "guardando" });
 
     const supabase = createClient();
@@ -55,14 +74,18 @@ export function Captura({
       const userId = sesion.user?.id;
       if (!userId) throw new Error("sesión caducada");
 
-      // Compresión obligatoria (ADR-5): hace viable el giga del plan gratuito
-      // y no le quita calidad al OCR.
-      const comprimida = await imageCompression(file, {
-        maxSizeMB: COMPRESSION.maxSizeMB,
-        maxWidthOrHeight: COMPRESSION.maxWidthOrHeight,
-        useWebWorker: COMPRESSION.useWebWorker,
-        fileType: COMPRESSION.fileType,
-      });
+      // Recortar primero sobre la resolución original y comprimir después: al
+      // revés, un recorte pequeño de una imagen ya reducida sería ilegible.
+      const recortada = await recortarEnCliente(file, recorte);
+      const comprimida = await imageCompression(
+        new File([recortada], "captura.jpg", { type: "image/jpeg" }),
+        {
+          maxSizeMB: COMPRESSION.maxSizeMB,
+          maxWidthOrHeight: COMPRESSION.maxWidthOrHeight,
+          useWebWorker: COMPRESSION.useWebWorker,
+          fileType: COMPRESSION.fileType,
+        }
+      );
 
       const id = crypto.randomUUID();
       const ruta = `${userId}/${id}.jpg`;
@@ -86,8 +109,8 @@ export function Captura({
         .single<Capture>();
 
       if (errFila) {
-        // La foto ya está subida pero no hay fila que la referencie: se borra
-        // para no dejar basura huérfana ocupando el giga.
+        // La foto está subida pero no hay fila que la referencie: se borra para
+        // no dejar basura huérfana ocupando el giga del plan gratuito.
         await supabase.storage.from(STORAGE.bucket).remove([ruta]);
         throw new Error(`no se pudo guardar la captura: ${errFila.message}`);
       }
@@ -95,13 +118,18 @@ export function Captura({
       setEstado({ tipo: "guardado", captura: fila, libro: libro.title });
       onGuardada();
 
-      // El OCR ya NO se dispara solo. Se transcribe después de elegir la zona
-      // (Recortador), porque transcribir la página entera para quedarse con un
-      // párrafo llena la nota de texto que no interesa y paga tokens de sobra.
-      //
-      // Lo que no cambia: la foto queda guardada aquí y ahora, en el mismo
-      // número de taps que antes. Si nunca se transcribe, la foto sigue siendo
-      // la nota — que es lo que dice el ADR-3.
+      // Disparo del OCR sin esperar respuesta (ADR-3). Como la imagen ya es solo
+      // la zona elegida, transcribir automáticamente vuelve a tener sentido: no
+      // hay nada que descartar después. Si el móvil se apaga ahora, la fila se
+      // queda 'pending' y el barrido la recoge.
+      fetch("/api/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ captureId: fila.id }),
+        keepalive: true,
+      }).catch(() => {
+        /* el barrido lo recogerá */
+      });
     } catch (err) {
       setEstado({
         tipo: "error",
@@ -145,6 +173,31 @@ export function Captura({
       setCreandoLibro(false);
       onGuardada();
     }
+  }
+
+  // Pantalla de recorte: ocupa el hueco del botón, no se superpone, para que
+  // quede claro que la captura todavía no está guardada.
+  if (estado.tipo === "recortando") {
+    const { file, url } = estado;
+    return (
+      <div className="flex flex-col gap-3">
+        <Recortador url={url} valor={recorte} onChange={setRecorte} />
+        <div className="flex gap-2">
+          <button
+            onClick={() => guardar(file)}
+            className="flex-1 rounded-xl bg-amber-600 py-3 font-semibold text-white active:bg-amber-700"
+          >
+            Guardar esta zona
+          </button>
+          <button
+            onClick={() => setEstado({ tipo: "listo" })}
+            className="rounded-xl border border-slate-700 px-4 text-sm text-slate-400"
+          >
+            Descartar
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -210,10 +263,10 @@ export function Captura({
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          // Se limpia el valor para que capturar dos veces la misma foto
-          // vuelva a disparar el onChange.
+          // Se limpia el valor para que volver a elegir la misma foto dispare
+          // otra vez el onChange.
           e.target.value = "";
-          if (file) capturar(file);
+          if (file) elegirFoto(file);
         }}
       />
       <button
@@ -228,24 +281,16 @@ export function Captura({
       </button>
 
       {estado.tipo === "guardado" && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-emerald-800 bg-emerald-950/40 px-4 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="min-w-0 truncate text-sm text-emerald-200">
-              Guardado en «{estado.libro}»
-            </p>
-            <button
-              onClick={() => deshacer(estado.captura)}
-              className="shrink-0 text-sm text-emerald-300 underline underline-offset-4"
-            >
-              Deshacer
-            </button>
-          </div>
-          <Link
-            href={`/captura/${estado.captura.id}`}
-            className="rounded-xl bg-emerald-700 py-3 text-center text-sm font-semibold text-white active:bg-emerald-800"
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-800 bg-emerald-950/40 px-4 py-3">
+          <p className="min-w-0 truncate text-sm text-emerald-200">
+            Guardado en «{estado.libro}»
+          </p>
+          <button
+            onClick={() => deshacer(estado.captura)}
+            className="shrink-0 text-sm text-emerald-300 underline underline-offset-4"
           >
-            Elegir zona y transcribir
-          </Link>
+            Deshacer
+          </button>
         </div>
       )}
 
