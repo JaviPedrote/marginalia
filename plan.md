@@ -334,7 +334,7 @@ En v1.0 este apartado exigía la skill `desarrollo-riguroso` completa (Fases 0 y
 
 **v1.7 — 19/08/2026.** El recorte se adelanta a antes de guardar.
 
-- **Solo se guarda la zona elegida.** La v1.6 subía la foto entera y guardaba las coordenadas del recorte para aplicarlo en el servidor. Se invierte: se recorta en el navegador y a Storage llega únicamente el recorte. Se elimina la columna  y el procesado de imagen en el servidor (migración 007).
+- **Solo se guarda la zona elegida.** La v1.6 subía la foto entera y guardaba las coordenadas del recorte para aplicarlo en el servidor. Se invierte: se recorta en el navegador y a Storage llega únicamente el recorte. Se elimina la columna `crop` y el procesado de imagen en el servidor (migración 007).
 - **Guardar pasa de 5 a 6 taps** (§7). La sección llamaba innegociables a esos 5, así que el cambio queda registrado y no dado por bueno en silencio: el DoD debe medirse contra 6.
 - **La transcripción vuelve a ser automática.** Con la imagen ya recortada no hay nada que descartar después, así que se recupera el comportamiento del ADR-3: la interfaz confirma al instante y el texto llega solo.
 - **Recortador rehecho:** marco ajustable por bordes y esquinas en lugar de dibujar un rectángulo. Con el dedo, dibujar obliga a acertar el trazo a la primera y a repetirlo entero si te pasas; un marco puesto se corrige empujando el lado que sobra.
